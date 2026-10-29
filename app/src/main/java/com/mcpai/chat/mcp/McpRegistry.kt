@@ -33,6 +33,7 @@ data class McpServerConfig(
             }.takeIf { it.isNotEmpty() } ?: emptyMap(),
             connectTimeoutMs = timeoutSeconds * 1000,
             readTimeoutMs = timeoutSeconds * 1000,
+            spkiPin = spkiPin,
         )
 }
 
