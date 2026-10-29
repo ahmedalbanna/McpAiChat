@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MCP AI Chat</string>
+    <string name="title_servers">MCP Servers</string>
+    <string name="title_settings">Settings</string>
+    <string name="title_tools">Tools</string>
+    <string name="title_free_servers">Free MCP servers</string>
+    <string name="free_servers_intro">Public MCP servers that need no key. Every entry below was verified with a live initialize + tools/list handshake.</string>
+    <string name="action_add_server">Add server</string>
+
+    <string name="hint_message">Message…</string>
+    <string name="action_send">Send</string>
+    <string name="action_attach">Attach file</string>
+    <string name="action_voice_input">Voice input</string>
+    <string name="action_servers">MCP servers</string>
+    <string name="action_settings">AI provider</string>
+    <string name="action_new_server">Add server</string>
+    <string name="action_save">Save</string>
+    <string name="action_test">Test</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_new_chat">New conversation</string>
+    <string name="action_clear_chat">Clear conversation</string>
+    <string name="action_share_conversation">Share conversation</string>
+    <string name="action_refresh_models">Load models from provider</string>
+    <string name="no_models_found">Could not load the model list</string>
+    <string name="models_loaded">%d models loaded</string>
+
+    <string name="label_server_name">Name</string>
+    <string name="label_server_url">Server URL</string>
+    <string name="label_transport">Transport</string>
+    <string name="label_auth_header_name">Auth header name</string>
+    <string name="label_auth_header_value">Auth header value</string>
+    <string name="label_timeout_seconds">Timeout (seconds)</string>
+    <string name="label_trusted_domain">Trusted domain (certificate pinning)</string>
+    <string name="label_api_key">OpenAI API key</string>
+    <string name="label_base_url">Base URL</string>
+    <string name="label_model">Model</string>
+    <string name="label_system_prompt">System prompt</string>
+    <string name="label_temperature">Temperature</string>
+    <string name="label_enabled">Enabled</string>
+    <string name="label_enabled_tools">Allow the model to call MCP tools</string>
+    <string name="label_confirm_tools">Confirm every tool call before it runs</string>
+    <string name="label_confirm_tools_hint">An MCP server is third-party code. Leave this on unless you fully trust the servers you added.</string>
+    <string name="label_history">Messages replayed to the model: %1$d</string>
+    <string name="label_history_hint">Older messages stay on disk but are not re-sent, which keeps each turn fast and cheap. The assistant message that requested a tool is always kept together with its result.</string>
+
+    <string name="status_connected">Connected</string>
+    <string name="status_failed">Failed</string>
+    <string name="status_untested">Not tested</string>
+
+    <string name="empty_conversation">Send a message to start the conversation.</string>
+    <string name="empty_conversations">No conversations yet. Start a new chat.</string>
+    <string name="no_tools_connected">no tools connected</string>
+    <string name="empty_servers">No MCP servers yet.\nAdd one to give the model tools.</string>
+    <string name="empty_tools">This server exposed no tools.</string>
+
+    <string name="label_tool_call">Tool call</string>
+    <string name="label_tool_result">Result</string>
+    <string name="label_arguments">Arguments</string>
+    <string name="label_running">running…</string>
+    <string name="label_done">done</string>
+    <string name="label_error">error</string>
+    <string name="label_declined">declined</string>
+
+    <string name="tool_approval_title">Run this tool?</string>
+    <string name="tool_approval_message">%1$s on %2$s\n\nArguments:\n%3$s</string>
+    <string name="tool_approval_allow">Allow</string>
+    <string name="tool_approval_deny">Deny</string>
+    <string name="tool_approval_trust">Trust \"%1$s\" for this conversation</string>
+</resources>

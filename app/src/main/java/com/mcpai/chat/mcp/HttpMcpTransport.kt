@@ -30,11 +30,11 @@ import java.util.zip.GZIPInputStream
  * verified after the TLS handshake. A mismatch throws [SpkiPinMismatchException].
  */
 class HttpMcpTransport(
-    private val baseUrl: String,
-    private val headers: Map<String, String> = emptyMap(),
-    private val connectTimeoutMs: Int = 15_000,
-    private val readTimeoutMs: Int = 120_000,
-    private val spkiPin: String? = null,
+    internal val baseUrl: String,
+    internal val headers: Map<String, String> = emptyMap(),
+    internal val connectTimeoutMs: Int = 15_000,
+    internal val readTimeoutMs: Int = 120_000,
+    internal val spkiPin: String? = null,
 ) : McpTransport {
 
     override val displayName: String = baseUrl

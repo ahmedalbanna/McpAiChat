@@ -8,6 +8,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.materialswitch.MaterialSwitch
 import com.mcpai.chat.R
 import com.mcpai.chat.data.Settings
 import com.mcpai.chat.mcp.HttpMcpTransport
@@ -22,16 +23,17 @@ import java.util.UUID
  * Adds or edits one MCP server and can probe it with a real `initialize` +
  * `tools/list` round trip.
  *
- * Note: the layout still exposes a single `authField`; it is mapped to
- * `authHeaderValue` with `authHeaderName` defaulting to `Authorization`.
- * The expanded UI (separate name/value/timeout/trusted fields) comes in T-03.
+ * Fields: name, URL, auth header name/value, timeout seconds, trusted domain toggle.
  */
 class ServerEditActivity : AppCompatActivity() {
 
     private lateinit var settings: Settings
     private lateinit var nameField: EditText
     private lateinit var urlField: EditText
-    private lateinit var authField: EditText
+    private lateinit var authHeaderNameField: EditText
+    private lateinit var authHeaderValueField: EditText
+    private lateinit var timeoutField: EditText
+    private lateinit var trustedSwitch: MaterialSwitch
     private var existingId: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -41,14 +43,20 @@ class ServerEditActivity : AppCompatActivity() {
 
         nameField = findViewById(R.id.nameField)
         urlField = findViewById(R.id.urlField)
-        authField = findViewById(R.id.authField)
+        authHeaderNameField = findViewById(R.id.authHeaderNameField)
+        authHeaderValueField = findViewById(R.id.authHeaderValueField)
+        timeoutField = findViewById(R.id.timeoutField)
+        trustedSwitch = findViewById(R.id.trustedSwitch)
 
         existingId = intent.getStringExtra(EXTRA_ID)
         if (existingId != null) {
             settings.servers().firstOrNull { it.id == existingId }?.let { config ->
                 nameField.setText(config.name)
                 urlField.setText(config.url)
-                authField.setText(config.authHeaderValue.orEmpty())
+                authHeaderNameField.setText(config.authHeaderName.orEmpty())
+                authHeaderValueField.setText(config.authHeaderValue.orEmpty())
+                timeoutField.setText(config.timeoutSeconds.toString())
+                trustedSwitch.isChecked = config.isTrusted
                 findViewById<MaterialButton>(R.id.deleteButton).visibility = android.view.View.VISIBLE
             }
         }
@@ -66,11 +74,11 @@ class ServerEditActivity : AppCompatActivity() {
         name = nameField.text.toString().trim().ifEmpty { "MCP server" },
         url = HttpMcpTransport.normaliseUrl(urlField.text.toString().trim()),
         enabled = true,
-        authHeaderName = Settings.DEFAULT_AUTH_HEADER_NAME,
-        authHeaderValue = authField.text.toString().trim().takeIf { it.isNotEmpty() },
-        timeoutSeconds = Settings.DEFAULT_TIMEOUT_SECONDS,
+        authHeaderName = authHeaderNameField.text.toString().trim().takeIf { it.isNotEmpty() },
+        authHeaderValue = authHeaderValueField.text.toString().trim().takeIf { it.isNotEmpty() },
+        timeoutSeconds = timeoutField.text.toString().trim().toIntOrNull() ?: 30,
         customHeaders = emptyMap(),
-        isTrusted = false,
+        isTrusted = trustedSwitch.isChecked,
         spkiPin = null,
     )
 

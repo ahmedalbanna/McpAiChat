@@ -18,11 +18,11 @@ data class McpServerConfig(
 ) {
     /** Authorization header value built from name + value, or null when not configured. */
     val authHeader: String?
-        get() = buildString {
+        get() = if (authHeaderValue.orEmpty().isBlank()) null else buildString {
             append(authHeaderName.orEmpty().trim())
-            if (isNotEmpty()) append(": ")
+            append(": ")
             append(authHeaderValue.orEmpty().trim())
-        }.takeIf { it.isNotBlank() }
+        }
 
     val transport: McpTransport
         get() = HttpMcpTransport(
