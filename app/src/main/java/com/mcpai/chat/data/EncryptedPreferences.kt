@@ -64,6 +64,7 @@ class EncryptedPreferences private constructor(
                 setBlockModes(KeyProperties.BLOCK_MODE_GCM)
                 setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
                 setKeySize(256)
+                setRandomizedEncryptionRequired(false)
             }.build())
             generator.generateKey()
         }
@@ -80,10 +81,10 @@ class EncryptedPreferences private constructor(
     }
 
     override fun putString(key: String, value: String) {
-        val iv = ByteArray(IV_SIZE_BYTES)
-        java.security.SecureRandom().nextBytes(iv)
-        cipher.init(Cipher.ENCRYPT_MODE, keyStoreKey,
-            GCMParameterSpec(TAG_SIZE_BITS, iv))
+        // Let the Keystore generate the IV (required when randomizedEncryptionRequired is true).
+        // This works with both old keys (randomizedEncryptionRequired=true) and new keys.
+        cipher.init(Cipher.ENCRYPT_MODE, keyStoreKey)
+        val iv = cipher.iv
         val ciphertext = cipher.doFinal(value.toByteArray(Charsets.UTF_8))
         delegate.edit().putString(key, encode(iv + ciphertext)).apply()
     }
