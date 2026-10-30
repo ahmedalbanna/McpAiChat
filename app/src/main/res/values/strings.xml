@@ -69,4 +69,5 @@
     <string name="tool_approval_allow">Allow</string>
     <string name="tool_approval_deny">Deny</string>
     <string name="tool_approval_trust">Trust \"%1$s\" for this conversation</string>
+    <string name="label_auto_approve">Auto-approve this tool</string>
 </resources>

@@ -331,7 +331,12 @@ class MainActivity : AppCompatActivity() {
             text = getString(R.string.tool_approval_trust, request.serverName)
             isChecked = false
         }
+        val autoApproveBox = com.google.android.material.checkbox.MaterialCheckBox(this).apply {
+            text = getString(R.string.label_auto_approve)
+            isChecked = false
+        }
         container.addView(trustBox)
+        container.addView(autoApproveBox)
 
         val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.tool_approval_title)
@@ -346,14 +351,18 @@ class MainActivity : AppCompatActivity() {
             .setView(container)
             .setCancelable(false)
             .setPositiveButton(R.string.tool_approval_allow) { _, _ ->
-                repo.approveToolCall(approved = true, trustServer = trustBox.isChecked)
+                repo.approveToolCall(
+                    approved = true,
+                    trustServer = trustBox.isChecked,
+                    autoApproveTool = autoApproveBox.isChecked,
+                )
             }
             .setNegativeButton(R.string.tool_approval_deny) { _, _ ->
-                repo.approveToolCall(approved = false, trustServer = false)
+                repo.approveToolCall(approved = false, trustServer = false, autoApproveTool = false)
             }
             .setOnCancelListener {
                 // Dismissing the dialog is a denial, never an approval.
-                repo.approveToolCall(approved = false, trustServer = false)
+                repo.approveToolCall(approved = false, trustServer = false, autoApproveTool = false)
             }
             .create()
 

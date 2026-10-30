@@ -118,6 +118,9 @@ class McpRegistry {
 
     fun isConnected(serverId: String): Boolean = clients[serverId]?.initialized == true
 
+    /** Returns the server id that advertises [toolName], or null if no connected server exposes it. */
+    fun serverIdOf(toolName: String): String? = toolIndex[toolName]
+
     /**
      * The display name of the server that advertises [toolName], or null when no
      * connected server exposes it. Shown in the tool-approval dialog so the user
