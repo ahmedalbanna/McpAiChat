@@ -33,6 +33,7 @@
     <string name="label_auth_header_value">Auth header value</string>
     <string name="label_timeout_seconds">Timeout (seconds)</string>
     <string name="label_trusted_domain">Trusted domain (certificate pinning)</string>
+    <string name="badge_trusted">Trusted</string>
     <string name="label_api_key">OpenAI API key</string>
     <string name="label_base_url">Base URL</string>
     <string name="label_model">Model</string>

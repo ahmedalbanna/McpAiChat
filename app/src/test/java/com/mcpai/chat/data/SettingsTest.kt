@@ -112,6 +112,40 @@ class SettingsTest {
         val settings2 = Settings(store, serializer)
         assertEquals("srv-99", settings2.activeServerId)
     }
+
+    // ---- active server clearing on delete -------------------------------------
+
+    @Test
+    fun `removeServer clears activeServerId when removing the active server`() {
+        settings.addServer(McpServerConfig(id = "srv-1", name = "One", url = "https://a.com/mcp"))
+        settings.addServer(McpServerConfig(id = "srv-2", name = "Two", url = "https://b.com/mcp"))
+        settings.activeServerId = "srv-1"
+
+        settings.removeServer("srv-1")
+
+        assertNull(settings.activeServerId)
+    }
+
+    @Test
+    fun `removeServer does not clear activeServerId when removing a different server`() {
+        settings.addServer(McpServerConfig(id = "srv-1", name = "One", url = "https://a.com/mcp"))
+        settings.addServer(McpServerConfig(id = "srv-2", name = "Two", url = "https://b.com/mcp"))
+        settings.activeServerId = "srv-1"
+
+        settings.removeServer("srv-2")
+
+        assertEquals("srv-1", settings.activeServerId)
+    }
+
+    @Test
+    fun `removeServer does not clear activeServerId when the active server was never set`() {
+        settings.addServer(McpServerConfig(id = "srv-1", name = "One", url = "https://a.com/mcp"))
+        assertNull(settings.activeServerId)
+
+        settings.removeServer("srv-1")
+
+        assertNull(settings.activeServerId)
+    }
 }
 
 /** In-memory fake of [EncryptedPreferences] for unit tests. */

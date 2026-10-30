@@ -83,8 +83,12 @@ class Settings internal constructor(
         saveServers(list)
     }
 
-    /** Removes the server with the given id. */
-    fun removeServer(id: String) = saveServers(servers().filterNot { it.id == id })
+    /** Removes the server with the given id, clearing the active selection if it was active. */
+    fun removeServer(id: String) {
+        val wasActive = activeServerId == id
+        saveServers(servers().filterNot { it.id == id })
+        if (wasActive) activeServerId = null
+    }
 
     /**
      * Builds a new [McpServerConfig] with sensible defaults for the fields a user
@@ -107,7 +111,7 @@ class Settings internal constructor(
 
     /** The id of the last-used server, or null when none has been selected. */
     var activeServerId: String?
-        get() = prefs.getString(KEY_ACTIVE_SERVER_ID, null)
+        get() = prefs.getString(KEY_ACTIVE_SERVER_ID, null)?.takeIf { it.isNotBlank() }
         set(value) = prefs.putString(KEY_ACTIVE_SERVER_ID, value.orEmpty())
 
     fun hasApiKey(): Boolean = openAiApiKey.isNotBlank()
