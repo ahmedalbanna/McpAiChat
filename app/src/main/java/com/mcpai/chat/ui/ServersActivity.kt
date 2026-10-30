@@ -17,6 +17,7 @@ import com.google.android.material.materialswitch.MaterialSwitch
 import com.mcpai.chat.R
 import com.mcpai.chat.data.ChatRepository
 import com.mcpai.chat.data.Settings
+import com.mcpai.chat.data.SettingsExporter
 import com.mcpai.chat.util.ChatError
 import com.mcpai.chat.util.ErrorClassifier
 import com.mcpai.chat.mcp.HttpMcpTransport
@@ -59,6 +60,12 @@ class ServersActivity : AppCompatActivity() {
             refresh()
         }
 
+    private val importLauncher =
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri == null) return@registerForActivityResult
+            importSettings(uri)
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_servers)
@@ -91,11 +98,47 @@ class ServersActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.catalogButton).setOnClickListener {
             catalogLauncher.launch(Intent(this, CatalogActivity::class.java))
         }
+
+        findViewById<MaterialButton>(R.id.exportButton).setOnClickListener {
+            exportSettings()
+        }
+
+        findViewById<MaterialButton>(R.id.importButton).setOnClickListener {
+            importLauncher.launch(arrayOf("application/json", "text/plain"))
+        }
     }
 
     override fun onResume() {
         super.onResume()
         refresh()
+    }
+
+    private fun exportSettings() {
+        val exporter = SettingsExporter()
+        val json = exporter.export(settings.servers(), includeSensitive = false)
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "application/json"
+            putExtra(Intent.EXTRA_TEXT, json)
+            putExtra(Intent.EXTRA_SUBJECT, "MCP AI Chat server settings")
+        }
+        startActivity(Intent.createChooser(intent, "Export server settings"))
+    }
+
+    private fun importSettings(uri: android.net.Uri) {
+        lifecycleScope.launch {
+            try {
+                val json = contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: return@launch
+                val exporter = SettingsExporter()
+                val imported = exporter.import(json)
+                for (config in imported) {
+                    settings.addServer(config)
+                }
+                refresh()
+                Toast.makeText(this@ServersActivity, "Imported ${imported.size} server(s)", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Toast.makeText(this@ServersActivity, "Import failed: ${e.message}", Toast.LENGTH_LONG).show()
+            }
+        }
     }
 
     private fun refresh() {
