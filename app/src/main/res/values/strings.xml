@@ -56,6 +56,14 @@
     <string name="empty_servers">No MCP servers yet.\nAdd one to give the model tools.</string>
     <string name="empty_tools">This server exposed no tools.</string>
 
+    <!-- Error dialogs (T-07) -->
+    <string name="error_spki_mismatch_title">Certificate changed</string>
+    <string name="error_spki_mismatch_message">%1$s: the server\'s certificate no longer matches the trusted pin. This may indicate a man-in-the-middle attack or a certificate renewal.</string>
+    <string name="error_spki_retrust">Re-trust</string>
+    <string name="error_server_unavailable_title">Server unavailable</string>
+    <string name="error_server_unavailable_message">%1$s: %2$s</string>
+    <string name="error_retry">Retry</string>
+
     <string name="label_tool_call">Tool call</string>
     <string name="label_tool_result">Result</string>
     <string name="label_arguments">Arguments</string>

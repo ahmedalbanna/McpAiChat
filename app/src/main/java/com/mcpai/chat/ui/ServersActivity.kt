@@ -4,7 +4,9 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -15,6 +17,8 @@ import com.google.android.material.materialswitch.MaterialSwitch
 import com.mcpai.chat.R
 import com.mcpai.chat.data.ChatRepository
 import com.mcpai.chat.data.Settings
+import com.mcpai.chat.util.ChatError
+import com.mcpai.chat.util.ErrorClassifier
 import com.mcpai.chat.mcp.HttpMcpTransport
 import com.mcpai.chat.mcp.McpServerConfig
 import com.mcpai.chat.mcp.ServerProbe
@@ -98,12 +102,64 @@ class ServersActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val repo = ChatRepository(applicationContext)
             val configs = settings.servers()
-            val probes = repo.refreshServers(configs)
-            val probeMap = probes.associateBy { serverIdOf(it) }
-            adapter.submit(configs, probeMap)
-            emptyView.visibility = if (configs.isEmpty()) View.VISIBLE else View.GONE
+            try {
+                val probes = repo.refreshServers(configs)
+                val probeMap = probes.associateBy { serverIdOf(it) }
+                adapter.submit(configs, probeMap)
+                emptyView.visibility = if (configs.isEmpty()) View.VISIBLE else View.GONE
+
+                // Show specific error dialogs for failed probes (T-07).
+                for (probe in probes) {
+                    if (probe is ServerProbe.Failed) {
+                        val config = configs.firstOrNull { it.id == probe.serverId }
+                        val reason = probe.reason
+                        if (reason.contains("SPKI pin mismatch", ignoreCase = true)) {
+                            showSpkiMismatchDialog(config, reason)
+                        } else if (reason.contains("Cannot reach", ignoreCase = true) ||
+                            reason.contains("Failed to connect", ignoreCase = true)) {
+                            showServerUnavailableDialog(config, reason)
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                val error = ErrorClassifier.classify(e)
+                when (error) {
+                    is ChatError.SpkiMismatch -> showSpkiMismatchDialog(null, error.current)
+                    is ChatError.ServerUnavailable -> showServerUnavailableDialog(null, error.message)
+                    is ChatError.Unknown -> Toast.makeText(this@ServersActivity, error.message, Toast.LENGTH_LONG).show()
+                }
+            }
             repo.close()
         }
+    }
+
+    private fun showSpkiMismatchDialog(config: McpServerConfig?, reason: String) {
+        val serverName = config?.name ?: "Unknown server"
+        AlertDialog.Builder(this)
+            .setTitle(R.string.error_spki_mismatch_title)
+            .setMessage(getString(R.string.error_spki_mismatch_message, serverName))
+            .setPositiveButton(R.string.error_spki_retrust) { _, _ ->
+                // Re-trust: update the SPKI pin to the current value.
+                // The current pin is in the exception; for probe failures we
+                // re-extract from the server. For now, mark as untrusted so
+                // the user can re-add trust manually.
+                config?.let {
+                    settings.addServer(it.copy(isTrusted = false, spkiPin = null))
+                    refresh()
+                }
+            }
+            .setNegativeButton(R.string.action_cancel, null)
+            .show()
+    }
+
+    private fun showServerUnavailableDialog(config: McpServerConfig?, reason: String) {
+        val serverName = config?.name ?: "Unknown server"
+        AlertDialog.Builder(this)
+            .setTitle(R.string.error_server_unavailable_title)
+            .setMessage(getString(R.string.error_server_unavailable_message, serverName, reason))
+            .setPositiveButton(R.string.error_retry) { _, _ -> refresh() }
+            .setNegativeButton(R.string.action_cancel, null)
+            .show()
     }
 
     private fun serverIdOf(probe: ServerProbe): String = when (probe) {

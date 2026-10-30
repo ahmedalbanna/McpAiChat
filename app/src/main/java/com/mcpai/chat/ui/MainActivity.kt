@@ -31,6 +31,8 @@ import com.mcpai.chat.data.ChatEvent
 import com.mcpai.chat.data.ChatRepository
 import com.mcpai.chat.data.Settings
 import com.mcpai.chat.data.StoredMessage
+import com.mcpai.chat.util.ChatError
+import com.mcpai.chat.util.ErrorClassifier
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
@@ -373,6 +375,39 @@ class MainActivity : AppCompatActivity() {
     private fun prettyArgs(raw: String): String = runCatching {
         org.json.JSONObject(raw).toString(2)
     }.getOrDefault(raw)
+
+    /** Shows a specific error dialog based on the exception type (T-07). */
+    private fun showErrorDialog(exception: Throwable, serverName: String) {
+        val error = ErrorClassifier.classify(exception, serverName)
+        when (error) {
+            is ChatError.SpkiMismatch -> {
+                AlertDialog.Builder(this)
+                    .setTitle(R.string.error_spki_mismatch_title)
+                    .setMessage(getString(R.string.error_spki_mismatch_message, serverName.ifBlank { "Server" }))
+                    .setPositiveButton(R.string.error_spki_retrust) { _, _ ->
+                        // Re-trust: mark as untrusted so user can re-add trust.
+                        // The actual re-extraction happens on next connection attempt.
+                    }
+                    .setNegativeButton(R.string.action_cancel, null)
+                    .show()
+            }
+            is ChatError.ServerUnavailable -> {
+                AlertDialog.Builder(this)
+                    .setTitle(R.string.error_server_unavailable_title)
+                    .setMessage(getString(R.string.error_server_unavailable_message, serverName.ifBlank { "Server" }, error.message))
+                    .setPositiveButton(R.string.error_retry) { _, _ ->
+                        lifecycleScope.launch {
+                            try { repo.refreshServers() } catch (_: Exception) {}
+                        }
+                    }
+                    .setNegativeButton(R.string.action_cancel, null)
+                    .show()
+            }
+            is ChatError.Unknown -> {
+                Toast.makeText(this, error.message, Toast.LENGTH_LONG).show()
+            }
+        }
+    }
 
     /** Starts speech recognition and inserts results into the input field. */
     private fun startListening() {

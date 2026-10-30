@@ -14,6 +14,8 @@ import com.mcpai.chat.data.Settings
 import com.mcpai.chat.mcp.HttpMcpTransport
 import com.mcpai.chat.mcp.McpClient
 import com.mcpai.chat.mcp.McpServerConfig
+import com.mcpai.chat.util.ChatError
+import com.mcpai.chat.util.ErrorClassifier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -97,20 +99,47 @@ class ServerEditActivity : AppCompatActivity() {
         val button = findViewById<MaterialButton>(R.id.testButton)
         button.isEnabled = false
         lifecycleScope.launch {
-            val outcome = withContext(Dispatchers.IO) {
+            val result = withContext(Dispatchers.IO) {
                 runCatching {
                     val client = McpClient(config.transport)
                     val info = client.initialize()
                     val tools = client.listTools()
                     client.close()
                     "${info.name} ${info.version} · ${tools.size} tools"
-                }.fold(
-                    onSuccess = { it },
-                    onFailure = { "Failed: ${it.message}" },
-                )
+                }
             }
             button.isEnabled = true
-            Toast.makeText(this@ServerEditActivity, outcome, Toast.LENGTH_LONG).show()
+            result.fold(
+                onSuccess = { outcome ->
+                    Toast.makeText(this@ServerEditActivity, outcome, Toast.LENGTH_LONG).show()
+                },
+                onFailure = { e ->
+                    val error = ErrorClassifier.classify(e, config.name)
+                    when (error) {
+                        is ChatError.SpkiMismatch -> {
+                            androidx.appcompat.app.AlertDialog.Builder(this@ServerEditActivity)
+                                .setTitle(R.string.error_spki_mismatch_title)
+                                .setMessage(getString(R.string.error_spki_mismatch_message, config.name))
+                                .setPositiveButton(R.string.error_spki_retrust) { _, _ ->
+                                    settings.addServer(config.copy(isTrusted = false, spkiPin = null))
+                                }
+                                .setNegativeButton(R.string.action_cancel, null)
+                                .show()
+                        }
+                        is ChatError.ServerUnavailable -> {
+                            androidx.appcompat.app.AlertDialog.Builder(this@ServerEditActivity)
+                                .setTitle(R.string.error_server_unavailable_title)
+                                .setMessage(getString(R.string.error_server_unavailable_message, config.name, error.message))
+                                .setPositiveButton(R.string.error_retry) { _, _ -> test() }
+                                .setNegativeButton(R.string.action_cancel, null)
+                                .show()
+                        }
+                        else -> {
+                            Toast.makeText(this@ServerEditActivity, "Failed: ${e.message}", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                },
+            )
         }
     }
 
