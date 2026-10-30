@@ -1,0 +1,19 @@
+{
+  "name": "mcpaichat",
+  "version": "1.0.0",
+  "description": "MCP AI Chat - Android app",
+  "main": "index.js",
+  "scripts": {
+    "prepare": "husky",
+    "typecheck": "gradle app:compileDebugKotlin",
+    "test": "gradle app:testDebugUnitTest"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^17.6.0"
+  }
+}
