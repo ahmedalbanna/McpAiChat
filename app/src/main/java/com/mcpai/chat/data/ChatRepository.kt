@@ -196,6 +196,11 @@ class ChatRepository(context: Context) {
         }
         send(ChatEvent.UserMessage(userId, userText, attachmentPath, attachmentName))
 
+        // Lazy connect: connect MCP servers on first message, not at app startup.
+        if (_tools.value.isEmpty() && settings.servers().isNotEmpty()) {
+            refreshServers()
+        }
+
         val history = withContext(Dispatchers.IO) { db.messages(conversationId) }
             .filter { it.id != userId }
             .let { TurnHistory.replay(it, settings.historyLimit) }

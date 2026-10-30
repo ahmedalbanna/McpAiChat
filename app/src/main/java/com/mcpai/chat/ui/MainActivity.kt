@@ -162,7 +162,7 @@ class MainActivity : AppCompatActivity() {
                 repo.openConversation()
                 reload()
             }
-            repo.refreshServers()
+            // MCP servers connect lazily on first message (T-06), not at startup.
         }
         // Show how many MCP tools are live, so a silent model is easy to diagnose.
         lifecycleScope.launch {

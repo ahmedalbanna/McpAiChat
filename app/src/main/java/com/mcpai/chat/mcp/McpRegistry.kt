@@ -58,12 +58,20 @@ sealed interface ServerProbe {
 /**
  * Holds the live [McpClient] instances for every enabled server and routes
  * tool calls to the server that advertised the tool.
+ *
+ * Connection is lazy: servers are not connected until [connect] or
+ * [ensureConnected] is called. On connection failure, a single retry is
+ * attempted before marking the server as failed.
  */
-class McpRegistry {
+class McpRegistry(
+    private val transportFactory: (McpServerConfig) -> McpTransport = { it.transport },
+) {
 
     private val clients = mutableMapOf<String, McpClient>()
     private val toolIndex = mutableMapOf<String, String>() // tool name -> server id
     private val serverNames = mutableMapOf<String, String>() // server id -> config name
+    private val storedTools = mutableListOf<McpTool>() // tools from last connect
+    private var connectedConfigs: List<McpServerConfig> = emptyList()
 
     /** Connects (or reconnects) every enabled server and returns the merged tool list. */
     suspend fun connect(configs: List<McpServerConfig>): Pair<List<RoutedTool>, List<ServerProbe>> =
@@ -75,22 +83,25 @@ class McpRegistry {
                 serverNames.remove(id)
             }
             toolIndex.clear()
+            connectedConfigs = configs.filter { it.enabled }
 
             val probes = mutableListOf<ServerProbe>()
             val tools = mutableListOf<RoutedTool>()
+            storedTools.clear()
+
+            val retryPolicy = ConnectionRetryPolicy(maxAttempts = 2)
 
             for (config in configs.filter { it.enabled }) {
-                try {
-                    val client = clients.getOrPut(config.id) {
-                        McpClient(config.transport).also { c ->
-                            c.initialize()
-                        }
+                val result = retryPolicy.execute {
+                    val client = McpClient(transportFactory(config)).also { c ->
+                        c.initialize()
                     }
                     if (!client.initialized) {
                         client.initialize()
                     }
                     val serverTools = client.listTools()
                     tools += serverTools.map { RoutedTool(it, config.id) }
+                    storedTools += serverTools
                     serverTools.forEach { toolIndex[it.name] = config.id }
                     serverNames[config.id] = config.name
                     probes += ServerProbe.Ok(
@@ -99,13 +110,34 @@ class McpRegistry {
                         info = client.serverInfo ?: McpServerInfo(config.name, "", "", null),
                         toolCount = serverTools.size,
                     )
-                } catch (e: Exception) {
+                    clients[config.id] = client
+                    client
+                }
+
+                if (result.isFailure) {
                     clients.remove(config.id)?.close()
-                    probes += ServerProbe.Failed(config.id, config.name, e.message ?: e.javaClass.simpleName)
+                    probes += ServerProbe.Failed(
+                        config.id,
+                        config.name,
+                        result.exceptionOrNull()?.message ?: result.exceptionOrNull()?.javaClass?.simpleName ?: "Unknown error",
+                    )
                 }
             }
             tools to probes
         }
+
+    /**
+     * Ensures all enabled servers from [configs] are connected. If already connected,
+     * does nothing (no redundant network calls).
+     */
+    suspend fun ensureConnected(configs: List<McpServerConfig>) {
+        if (clients.isEmpty() || toolIndex.isEmpty()) {
+            connect(configs)
+        }
+    }
+
+    /** Returns the currently connected tools. */
+    fun tools(): List<McpTool> = storedTools.toList()
 
     /** Calls a tool on whichever server advertised it. */
     suspend fun callTool(toolName: String, arguments: org.json.JSONObject): McpToolResult {
@@ -118,9 +150,6 @@ class McpRegistry {
 
     fun isConnected(serverId: String): Boolean = clients[serverId]?.initialized == true
 
-    /** Returns the server id that advertises [toolName], or null if no connected server exposes it. */
-    fun serverIdOf(toolName: String): String? = toolIndex[toolName]
-
     /**
      * The display name of the server that advertises [toolName], or null when no
      * connected server exposes it. Shown in the tool-approval dialog so the user
@@ -131,10 +160,15 @@ class McpRegistry {
         return serverNames[serverId] ?: serverId
     }
 
+    /** Returns the server id that advertises [toolName], or null if no connected server exposes it. */
+    fun serverIdOf(toolName: String): String? = toolIndex[toolName]
+
     fun closeAll() {
         clients.values.forEach { it.close() }
         clients.clear()
         toolIndex.clear()
         serverNames.clear()
+        storedTools.clear()
+        connectedConfigs = emptyList()
     }
 }
