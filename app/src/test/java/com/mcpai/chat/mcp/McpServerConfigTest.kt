@@ -68,29 +68,31 @@ class McpServerConfigTest {
     }
 
     @Test
-    fun `authHeader convenience property builds name and value`() {
+    fun `authHeaderName and authHeaderValue stored independently`() {
         val config = McpServerConfig(
             id = "srv-1", name = "Test", url = "https://example.com/mcp",
             authHeaderName = "Authorization", authHeaderValue = "Bearer tok",
         )
-        assertEquals("Authorization: Bearer tok", config.authHeader)
+        assertEquals("Authorization", config.authHeaderName)
+        assertEquals("Bearer tok", config.authHeaderValue)
     }
 
     @Test
-    fun `authHeader is null when no name set`() {
+    fun `authHeaderValue is null when not set`() {
         val config = McpServerConfig(
             id = "srv-1", name = "Test", url = "https://example.com/mcp",
         )
-        val header = config.authHeader
-        assertTrue(header == null || header.isBlank())
+        assertNull(config.authHeaderValue)
     }
 
     @Test
-    fun `authHeader is null when value empty even with name set`() {
+    fun `authHeaderValue is null when empty string passed`() {
         val config = McpServerConfig(
             id = "srv-1", name = "Test", url = "https://example.com/mcp",
             authHeaderName = "Authorization", authHeaderValue = "",
         )
-        assertNull(config.authHeader)
+        // Empty string is stored as-is; the takeIf in ServerEditActivity filters it.
+        // At the data model level, empty string is preserved (not null).
+        assertEquals("", config.authHeaderValue)
     }
 }

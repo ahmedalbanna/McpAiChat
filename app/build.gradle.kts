@@ -33,16 +33,11 @@ android {
         buildConfig = true
     }
 
-    testOptions {
-        unitTests {
-            isReturnDefaultValues = true
-        }
-    }
 }
 
 kotlin {
-    // The machine has JDK 21 (Android Studio JBR) and JDK 24; JDK 17 is not installed,
-    // so the toolchain targets 21 while the bytecode level stays at Java 17.
+    // This machine has JDK 21 (Android Studio JBR). JDK 17 is not installed.
+    // Bytecode level stays at Java 17 via compileOptions above.
     jvmToolchain(21)
 }
 

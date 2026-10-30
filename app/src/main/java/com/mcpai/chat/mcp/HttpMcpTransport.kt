@@ -43,6 +43,15 @@ class HttpMcpTransport(
     var sessionId: String? = null
         private set
 
+    /**
+     * The SPKI pin extracted from the server's TLS certificate during the last
+     * successful HTTPS connection. Only populated when [spkiPin] is null
+     * (first-time trust). Null for HTTP connections or when no cert is available.
+     */
+    @Volatile
+    var extractedSpkiPin: String? = null
+        private set
+
     override suspend fun send(message: JSONObject): JSONObject = withContext(Dispatchers.IO) {
         val url = URL(normaliseUrl(baseUrl))
         val conn = (url.openConnection() as HttpURLConnection).apply {
@@ -64,7 +73,12 @@ class HttpMcpTransport(
             conn.getHeaderField("Mcp-Session-Id")?.let { sessionId = it }
 
             if (code in 200..299) {
-                // Verify SPKI pin before trusting the response body.
+                // Extract SPKI pin on first connection to a trusted domain (no stored pin yet).
+                if (spkiPin == null) {
+                    extractedSpkiPin = extractSpkiPin(conn)
+                }
+
+                // Verify SPKI pin before trusting the response body (only when a pin is stored).
                 spkiPin?.let { storedPin ->
                     val currentPin = extractSpkiPin(conn) ?: throw SpkiPinMismatchException(
                         stored = storedPin,

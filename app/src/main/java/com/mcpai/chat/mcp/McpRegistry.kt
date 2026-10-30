@@ -3,40 +3,6 @@ package com.mcpai.chat.mcp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** A configured MCP server the app can talk to. */
-data class McpServerConfig(
-    val id: String,
-    val name: String,
-    val url: String,
-    val enabled: Boolean = true,
-    val authHeaderName: String? = null,
-    val authHeaderValue: String? = null,
-    val timeoutSeconds: Int = 30,
-    val customHeaders: Map<String, String> = emptyMap(),
-    val isTrusted: Boolean = false,
-    val spkiPin: String? = null,
-) {
-    /** Authorization header value built from name + value, or null when not configured. */
-    val authHeader: String?
-        get() = if (authHeaderValue.orEmpty().isBlank()) null else buildString {
-            append(authHeaderName.orEmpty().trim())
-            append(": ")
-            append(authHeaderValue.orEmpty().trim())
-        }
-
-    val transport: McpTransport
-        get() = HttpMcpTransport(
-            baseUrl = url,
-            headers = buildMap {
-                authHeaderName?.takeIf { it.isNotBlank() }?.let { put(it, authHeaderValue.orEmpty()) }
-                customHeaders.filterKeys { it.isNotBlank() }.forEach { (k, v) -> put(k, v) }
-            }.takeIf { it.isNotEmpty() } ?: emptyMap(),
-            connectTimeoutMs = timeoutSeconds * 1000,
-            readTimeoutMs = timeoutSeconds * 1000,
-            spkiPin = spkiPin,
-        )
-}
-
 /** A tool together with the server that owns it. */
 data class RoutedTool(
     val tool: McpTool,
@@ -50,6 +16,7 @@ sealed interface ServerProbe {
         val configName: String,
         val info: McpServerInfo,
         val toolCount: Int,
+        val spkiPin: String? = null,
     ) : ServerProbe
 
     data class Failed(val serverId: String, val configName: String, val reason: String) : ServerProbe
@@ -92,8 +59,10 @@ class McpRegistry(
             val retryPolicy = ConnectionRetryPolicy(maxAttempts = 2)
 
             for (config in configs.filter { it.enabled }) {
+                var extractedPin: String? = null
                 val result = retryPolicy.execute {
-                    val client = McpClient(transportFactory(config)).also { c ->
+                    val transport = transportFactory(config)
+                    val client = McpClient(transport).also { c ->
                         c.initialize()
                     }
                     if (!client.initialized) {
@@ -104,11 +73,13 @@ class McpRegistry(
                     storedTools += serverTools
                     serverTools.forEach { toolIndex[it.name] = config.id }
                     serverNames[config.id] = config.name
+                    extractedPin = (transport as? HttpMcpTransport)?.extractedSpkiPin
                     probes += ServerProbe.Ok(
                         serverId = config.id,
                         configName = config.name,
                         info = client.serverInfo ?: McpServerInfo(config.name, "", "", null),
                         toolCount = serverTools.size,
+                        spkiPin = extractedPin,
                     )
                     clients[config.id] = client
                     client

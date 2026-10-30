@@ -130,6 +130,17 @@ class ChatRepository(context: Context) {
             val (routed, probes) = registry.connect(configs)
             _tools.value = routed.map { it.tool }
             _serverProbes.value = probes
+
+            // Store extracted SPKI pins for trusted servers that don't have one yet (FR-11).
+            for (probe in probes) {
+                if (probe is ServerProbe.Ok && probe.spkiPin != null) {
+                    val config = configs.firstOrNull { it.id == probe.serverId }
+                    if (config != null && config.isTrusted && config.spkiPin == null) {
+                        settings.addServer(config.copy(spkiPin = probe.spkiPin))
+                    }
+                }
+            }
+
             probes
         }
 
