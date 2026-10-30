@@ -512,6 +512,8 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
         speechRecognizer?.cancel()
         speechRecognizer = null
-        repo.close()
+        if (::repo.isInitialized) {
+            repo.close()
+        }
     }
 }
