@@ -1,0 +1,3 @@
+interface:
+  display_name: "Device Debugger"
+  short_description: "Verify app behaviour on the attached phone"

@@ -46,6 +46,13 @@ adb shell cat /sdcard/ui.xml |
 
 Tap the centre of those bounds. **Read bounds, never reuse coordinates**: the keyboard slides the input bar up, so a Send button tapped at its pre-keyboard position silently does nothing — the message just sits in the field. Re-dump after every layout change.
 
+PowerShell transcodes non-ASCII on the way out (`…` becomes `ΓÇª`), so piped text can lie about a character. Decode it byte-exactly:
+
+```powershell
+$b64 = (adb shell base64 /sdcard/ui.xml | Out-String) -replace '\s',''
+$xml = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($b64))
+```
+
 ## Navigate (this device, 720x1280)
 
 | Target               | How                                                                                   |
