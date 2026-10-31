@@ -31,6 +31,10 @@ logs/
 # Node.js
 node_modules/
 
+# Python
+__pycache__/
+*.pyc
+
 # Temporary files
 *.tmp
 *.temp
