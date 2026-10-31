@@ -5,6 +5,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
+import java.io.OutputStream
 
 /**
  * MCP "stdio" transport: launches a local process that speaks newline-delimited
@@ -24,6 +25,7 @@ class StdioMcpTransport(
 
     private var process: Process? = null
     private var reader: BufferedReader? = null
+    private var writer: OutputStream? = null
 
     private fun ensureStarted(): Process {
         process?.let { if (it.isAlive) return it }
@@ -31,19 +33,32 @@ class StdioMcpTransport(
             if (workingDir != null) directory(java.io.File(workingDir))
         }
         pb.environment().putAll(environment)
-        val p = pb.start()
+        val p = try {
+            pb.start()
+        } catch (e: Exception) {
+            throw McpTransportException(
+                "Cannot start stdio server '${command.joinToString(" ")}': ${e.message}",
+                e,
+            )
+        }
         process = p
         reader = BufferedReader(InputStreamReader(p.inputStream, Charsets.UTF_8))
+        // The stream stays open for the life of the process: closing it after
+        // one message would close the child's stdin.
+        writer = p.outputStream
         return p
     }
 
     override suspend fun send(message: JSONObject): JSONObject = withContext(Dispatchers.IO) {
-        val p = ensureStarted()
-        p.outputStream.use { out ->
-            out.write(message.toString().toByteArray(Charsets.UTF_8))
-            out.write('\n'.code)
-            out.flush()
-        }
+        ensureStarted()
+        val out = writer ?: throw McpTransportException("stdio writer unavailable")
+        out.write(message.toString().toByteArray(Charsets.UTF_8))
+        out.write('\n'.code)
+        out.flush()
+
+        // A notification carries no id and gets no reply. Waiting for one would
+        // block until the server closed the stream.
+        if (!message.has("id")) return@withContext JSONObject()
         val r = reader ?: throw McpTransportException("stdio reader unavailable")
         var answer: JSONObject? = null
         while (answer == null) {
@@ -56,8 +71,11 @@ class StdioMcpTransport(
     }
 
     override fun close() {
+        runCatching { writer?.close() }
+        runCatching { reader?.close() }
         runCatching { process?.destroy() }
         process = null
         reader = null
+        writer = null
     }
 }
