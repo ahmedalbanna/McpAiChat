@@ -12,6 +12,7 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
@@ -31,6 +32,11 @@ android {
 
     buildFeatures {
         buildConfig = true
+    }
+
+    testOptions {
+        // Espresso needs a still screen and no animations.
+        animationsDisabled = true
     }
 
 }
@@ -55,4 +61,11 @@ dependencies {
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20231013")
+
+    // Device-side tests: the Keystore, SQLite and the Android network stack
+    // cannot be exercised on the JVM.
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test:rules:1.6.1")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
 }
