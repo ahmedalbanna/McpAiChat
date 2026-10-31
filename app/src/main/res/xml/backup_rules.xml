@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 6-11 full-backup rules.
+
+  The conversations themselves are backed up as usual; the SharedPreferences
+  file that holds the OpenAI key, the MCP URLs and any authorization header is
+  excluded so the key never leaves the device through a cloud backup.
+-->
+<full-backup-content>
+    <exclude
+        domain="sharedpref"
+        path="mcp_ai_chat.xml" />
+</full-backup-content>

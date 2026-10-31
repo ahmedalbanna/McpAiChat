@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="start"
+    android:orientation="vertical"
+    android:paddingStart="12dp"
+    android:paddingTop="4dp"
+    android:paddingEnd="48dp"
+    android:paddingBottom="4dp">
+
+    <TextView
+        android:id="@+id/reasoning"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="4dp"
+        android:alpha="0.7"
+        android:background="@drawable/reasoning_block"
+        android:paddingStart="8dp"
+        android:paddingTop="6dp"
+        android:paddingEnd="8dp"
+        android:paddingBottom="6dp"
+        android:textIsSelectable="true"
+        android:textSize="12sp"
+        android:textStyle="italic"
+        android:visibility="gone"
+        tools:text="We need to add 21 and 21, so the add tool is the right one."
+        tools:visibility="visible" />
+
+    <TextView
+        android:id="@+id/bubble"
+        style="@style/Widget.McpAiChat.Bubble"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="@drawable/bubble_ai"
+        android:textColor="@color/bubble_ai_text"
+        android:textIsSelectable="true"
+        tools:text="Sure — here is what I found." />
+
+</LinearLayout>

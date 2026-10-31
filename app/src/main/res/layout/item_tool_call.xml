@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginStart="12dp"
+    android:layout_marginTop="6dp"
+    android:layout_marginEnd="48dp"
+    android:layout_marginBottom="6dp"
+    app:cardBackgroundColor="@color/tool_card_bg"
+    app:cardCornerRadius="14dp"
+    app:cardElevation="0dp"
+    app:strokeWidth="0dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="12dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <View
+                android:id="@+id/statusDot"
+                android:layout_width="8dp"
+                android:layout_height="8dp"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/dot_running" />
+
+            <TextView
+                android:id="@+id/toolName"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textAppearance="@style/TextAppearance.McpAiChat.ToolName"
+                tools:text="search_files" />
+
+            <TextView
+                android:id="@+id/toolState"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textAppearance="@style/TextAppearance.McpAiChat.Meta"
+                tools:text="running…" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/argsLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/label_arguments"
+            android:textAppearance="@style/TextAppearance.McpAiChat.Meta" />
+
+        <TextView
+            android:id="@+id/args"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:background="@drawable/code_block"
+            android:fontFamily="monospace"
+            android:padding="8dp"
+            android:textIsSelectable="true"
+            android:textSize="12sp"
+            tools:text="{&quot;path&quot;: &quot;/tmp&quot;}" />
+
+        <TextView
+            android:id="@+id/resultLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/label_tool_result"
+            android:textAppearance="@style/TextAppearance.McpAiChat.Meta"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/result"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:background="@drawable/code_block"
+            android:fontFamily="monospace"
+            android:maxLines="14"
+            android:padding="8dp"
+            android:textIsSelectable="true"
+            android:textSize="12sp"
+            android:visibility="gone"
+            tools:text="3 matches" />
+
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>

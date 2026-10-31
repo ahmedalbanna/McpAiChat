@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="white">#FFFFFFFF</color>
+    <color name="black">#FF000000</color>
+
+    <color name="brand_primary">#FF23313D</color>
+    <color name="brand_accent">#FF7BFFF0</color>
+    <color name="brand_accent_dark">#FF4DB6AC</color>
+
+    <color name="bubble_user">#FF23313D</color>
+    <color name="bubble_user_text">#FFFFFFFF</color>
+    <color name="bubble_ai">#FFD5F5F1</color>
+    <color name="bubble_ai_text">#FF1B1B1B</color>
+
+    <color name="tool_card_bg">#FFF4F3F0</color>
+    <color name="tool_accent">#FFA3404B</color>
+    <color name="tool_ok">#FF018786</color>
+    <color name="divider">#1A000000</color>
+</resources>
