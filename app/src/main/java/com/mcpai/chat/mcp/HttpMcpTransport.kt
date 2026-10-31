@@ -104,6 +104,15 @@ class HttpMcpTransport(
         } catch (e: McpTransportException) {
             throw e
         } catch (e: Exception) {
+            var root: Throwable = e
+            while (root.cause != null && root.cause !== root) {
+                root = root.cause!!
+            }
+            android.util.Log.e(
+                "McpTransport",
+                "Request to $baseUrl failed: ${e.javaClass.name}: ${e.message}",
+                root,
+            )
             throw McpTransportException("Cannot reach MCP server $baseUrl: ${e.message}", e)
         } finally {
             conn.disconnect()
@@ -170,15 +179,34 @@ class HttpMcpTransport(
     }
 
     companion object {
-        /** Accepts `host:port`, `http://host:port` and full `/mcp` endpoints alike. */
+        /** Matches an explicit URI scheme such as `https://` or `ftp://`. */
+        private val SCHEME_PATTERN = Regex("^[a-zA-Z][a-zA-Z0-9+.\\-]*://")
+
+        /**
+         * Accepts `host:port`, `http://host:port` and full `/mcp` endpoints alike.
+         *
+         * A missing scheme defaults to `https://` — the app is HTTPS-only, so
+         * silently falling back to cleartext HTTP would only produce a
+         * "server unavailable" error later. Loopback hosts keep `http://`
+         * because local development servers rarely have a certificate.
+         */
         fun normaliseUrl(raw: String): String {
             val trimmed = raw.trim()
-            val withScheme = if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
-                trimmed
-            } else {
-                "http://$trimmed"
+            val withScheme = when {
+                SCHEME_PATTERN.containsMatchIn(trimmed) -> trimmed
+                isLoopback(trimmed) -> "http://$trimmed"
+                else -> "https://$trimmed"
             }
-            return if (withScheme.endsWith("/")) withScheme.dropLast(1) else withScheme
+            val hasContent = withScheme.substringAfter("://", missingDelimiterValue = "").isNotEmpty()
+            return if (hasContent && withScheme.endsWith("/")) withScheme.dropLast(1) else withScheme
+        }
+
+        /** True for hosts that address this device itself. */
+        fun isLoopback(raw: String): Boolean {
+            val host = raw.substringAfter("://").substringBefore('/').substringBefore(':')
+            return host.equals("127.0.0.1", ignoreCase = true) ||
+                host.equals("localhost", ignoreCase = true) ||
+                host == "10.0.2.2"
         }
     }
 }

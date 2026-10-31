@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Network security config for MCP AI Chat.
+
+  - Cleartext HTTP is disabled for every internet-facing domain.
+  - HTTPS uses the system CA store, so any user-added MCP server works
+    without editing this file.
+  - Loopback stays cleartext-capable so a local MCP server (adb reverse)
+    can be used during development.
+
+  IMPORTANT (Android 8 / API 26 parser rules):
+  - Every <domain-config> MUST declare its own <trust-anchors>. A
+    <domain-config> without it makes the whole file fail to parse, which
+    breaks TLS initialisation for the entire app ("No factory found.").
+  - <debug-overrides> may only contain <trust-anchors>; a nested
+    <domain-config> inside it is rejected ("Nested domain-config not
+    allowed in debug-overrides").
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <!-- Loopback exception for local development servers. -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">127.0.0.1</domain>
+        <domain includeSubdomains="true">localhost</domain>
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </domain-config>
+
+    <!-- Debug builds additionally trust user-installed CA certificates. -->
+    <debug-overrides>
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </debug-overrides>
+</network-security-config>

@@ -14,6 +14,8 @@ import com.mcpai.chat.data.Settings
 import com.mcpai.chat.mcp.HttpMcpTransport
 import com.mcpai.chat.mcp.McpClient
 import com.mcpai.chat.mcp.McpServerConfig
+import com.mcpai.chat.mcp.ServerUrlProblem
+import com.mcpai.chat.mcp.ServerUrlValidator
 import com.mcpai.chat.util.ChatError
 import com.mcpai.chat.util.ErrorClassifier
 import kotlinx.coroutines.Dispatchers
@@ -90,9 +92,30 @@ class ServerEditActivity : AppCompatActivity() {
             Toast.makeText(this, R.string.label_server_url, Toast.LENGTH_SHORT).show()
             return
         }
+        val problem = validateUrl(url)
+        if (problem != null) {
+            Toast.makeText(this, problem, Toast.LENGTH_LONG).show()
+            return
+        }
         settings.addServer(currentConfig())
         finish()
     }
+
+    /**
+     * Returns a user-facing problem with [rawUrl], or null when the URL is
+     * acceptable. HTTPS is required; plain HTTP is only allowed for loopback
+     * addresses, where local development servers live.
+     */
+    private fun validateUrl(rawUrl: String): String? =
+        when (ServerUrlValidator.validate(rawUrl)) {
+            null -> null
+            ServerUrlProblem.NOT_HTTP -> getString(R.string.error_url_scheme, rawUrl)
+            ServerUrlProblem.MISSING_HOST -> getString(R.string.error_url_scheme, rawUrl)
+            ServerUrlProblem.HTTPS_REQUIRED -> getString(
+                R.string.error_url_https_required,
+                rawUrl.substringAfter("://").substringBefore('/').substringBefore(':'),
+            )
+        }
 
     private fun test() {
         val config = currentConfig()

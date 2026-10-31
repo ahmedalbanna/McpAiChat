@@ -65,6 +65,8 @@
     <string name="error_server_unavailable_title">Server unavailable</string>
     <string name="error_server_unavailable_message">%1$s: %2$s</string>
     <string name="error_retry">Retry</string>
+    <string name="error_url_scheme">\"%1$s\" is not a valid HTTP(S) URL.</string>
+    <string name="error_url_https_required">%1$s must use HTTPS. Plain HTTP is only allowed for localhost.</string>
 
     <string name="label_tool_call">Tool call</string>
     <string name="label_tool_result">Result</string>
