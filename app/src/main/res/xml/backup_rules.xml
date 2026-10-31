@@ -5,9 +5,11 @@
   The conversations themselves are backed up as usual; the SharedPreferences
   file that holds the OpenAI key, the MCP URLs and any authorization header is
   excluded so the key never leaves the device through a cloud backup.
+
+  The file name must match the one in EncryptedPreferences.create().
 -->
 <full-backup-content>
     <exclude
         domain="sharedpref"
-        path="mcp_ai_chat.xml" />
+        path="mcp_ai_chat_encrypted.xml" />
 </full-backup-content>

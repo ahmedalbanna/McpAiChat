@@ -41,9 +41,17 @@ class EncryptedPreferences private constructor(
         private const val TAG_SIZE_BITS = 128
         private const val ALIAS = "mcp_ai_chat_master_key"
 
+        /**
+         * Name of the preferences file that holds the encrypted values.
+         *
+         * The backup rules exclude this file by name, so the two must agree;
+         * `BackupRulesTest` checks that they do.
+         */
+        const val PREFERENCES_NAME = "mcp_ai_chat_encrypted"
+
         fun create(context: Context): EncryptedPreferences {
             ensureKeyExists(context)
-            val delegate = context.getSharedPreferences("mcp_ai_chat_encrypted", Context.MODE_PRIVATE)
+            val delegate = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
             val cipher = Cipher.getInstance(KeyProperties.KEY_ALGORITHM_AES + "/" +
                 KeyProperties.BLOCK_MODE_GCM + "/" + KeyProperties.ENCRYPTION_PADDING_NONE)
             return EncryptedPreferences(delegate, cipher)

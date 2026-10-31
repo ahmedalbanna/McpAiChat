@@ -5,16 +5,18 @@
   Same intent as backup_rules.xml: secrets in the SharedPreferences are
   excluded from both cloud backup and device-to-device transfer, while the
   conversation database is kept.
+
+  The file name must match the one in EncryptedPreferences.create().
 -->
 <data-extraction-rules>
     <cloud-backup>
         <exclude
             domain="sharedpref"
-            path="mcp_ai_chat.xml" />
+            path="mcp_ai_chat_encrypted.xml" />
     </cloud-backup>
     <device-transfer>
         <exclude
             domain="sharedpref"
-            path="mcp_ai_chat.xml" />
+            path="mcp_ai_chat_encrypted.xml" />
     </device-transfer>
 </data-extraction-rules>
