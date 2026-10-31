@@ -1,6 +1,6 @@
 # McpAiChat — project context
 
-**Updated:** 2026-10-31 · **State:** domain-agnostic MCP management shipped and verified on a real device
+**Updated:** 2026-10-31 · **State:** domain-agnostic MCP management shipped, verified on a real device, and covered by an automated device test
 
 The briefing: what this app is, why it is shaped this way, where it stands, and what is left. Companion documents:
 
@@ -27,17 +27,17 @@ Two constraints shaped every decision:
 | Any MCP server by URL + auth header, timeout, custom headers       | **Verified on device** — DeepWiki and Firecrawl connected, 6 tools listed      |
 | Manual approval per tool call, with the owning server named        | **Verified on device** — dialog shown, `Allow` executed the call               |
 | Persistent per-tool auto-approval, revocable                       | Implemented + unit tested; the toggle not exercised on device                  |
-| SPKI certificate pinning for user-trusted domains                  | Implemented + unit tested; capture path wired, but see _Open work_             |
+| SPKI certificate pinning for user-trusted domains                  | Implemented + unit tested + **device tested** — the pin survives an edit       |
 | Lazy connect, one retry on failure                                 | **Verified on device** — tools appeared on the first message                   |
 | Per-type error dialogs (pin mismatch, server unavailable, unknown) | **Verified on device** for server-unavailable; the Re-trust path not exercised |
 | Active server remembered across launches                           | Implemented, not verified on device                                            |
 | Export / import of server settings as JSON, secrets excluded       | Implemented + unit tested; UI buttons not exercised on device                  |
-| Encrypted settings (AES-256-GCM, Android Keystore)                 | **Verified on device** — settings survive restarts                             |
+| Encrypted settings (AES-256-GCM, Android Keystore)                 | **Verified on device** — and by an instrumentation test that reads the file    |
 | Global LLM provider settings                                       | **Verified on device** — chat answered with the configured key                 |
-| Capped replay history (default 40, adjustable 4–200)               | Implemented + unit tested; the slider not exercised on device                  |
+| Capped replay history (default 40, adjustable 4–120)               | Implemented + unit tested; the slider not exercised on device                  |
 | Catalogue of 33 keyless public MCP servers                         | **Verified on device** — entries connect and answer                            |
 
-Test suite: **87 unit tests across 9 classes, 0 failures**. Pre-commit hook runs typecheck + tests on every commit.
+Test suite: **101 unit tests across 12 classes + 13 instrumentation tests on the device, 0 failures**. The pre-commit hook runs typecheck + unit tests on every commit; `gradle app:connectedDebugAndroidTest` runs the device tests.
 
 ## How it fits together
 
@@ -87,14 +87,24 @@ Settled during five review rounds and recorded in the glossary and the spec:
 - **`network_security_config.xml` has API 26 parser rules** — every `<domain-config>` needs its own `<trust-anchors>`, and `<debug-overrides>` may not nest a `<domain-config>`. A parse failure breaks **all** HTTPS in the app while `curl` on the device still works, which is what made this bug look like a network problem.
 - **Device `curl` and the app's TLS are different stacks** (BoringSSL vs Conscrypt). Test them separately.
 - **The `adb-shell` skill and `device-debugger` subagent exist** so device verification is a repeatable procedure rather than improvisation.
+- **The backup rules name the preferences file.** `backup_rules.xml` and `data_extraction_rules.xml` exclude `mcp_ai_chat_encrypted.xml`; the name lives in `EncryptedPreferences.PREFERENCES_NAME` and `BackupRulesTest` fails if the two drift apart.
+- **`androidTest` covers what the JVM cannot.** The Keystore, SQLite, the Android HTTP stack and the network security config are only exercised on the device - `gradle app:connectedDebugAndroidTest`.
+
+## What was closed on 2026-10-31
+
+| Was                                                  | Now                                                                                                                                                                                                                                     |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A trusted server silently lost its pin when re-saved | `SpkiPinPolicy` keeps the pin while the server stays trusted on the same host; the edit screen carries the custom headers and the enabled flag over too. Device tested.                                                                 |
+| 113 paths untracked, 46 tracked                      | 201 files tracked; a fresh clone builds the APK and passes the tests.                                                                                                                                                                   |
+| `README.md` stale in four places                     | Rewritten: HTTPS-only, encrypted settings, capped history, pinning, per-tool auto-approval, export/import.                                                                                                                              |
+| No automated device test                             | `app/src/androidTest` with 13 tests, run with `gradle app:connectedDebugAndroidTest`.                                                                                                                                                   |
+| `stdio` transport needed a local binary              | `tools/stdio_mcp_server.py` is the reference binary, and the transport is now covered by a test - which found two real defects (the child's stdin was closed after one message, and the transport waited for a reply to notifications). |
 
 ## Open work
 
-1. **A trusted server silently loses its pin when re-saved.** `ServerEditActivity` writes `spkiPin = null`, so editing a trusted server turns pinning off without saying so. Fix: preserve the stored pin unless the user re-trusts.
-2. **113 paths are still untracked** while the repo tracks 46 files — most of the app's sources, layouts and resources have never been committed. The history is a record of the changes, not of the app.
-3. **`README.md` is stale in four places**: it says cleartext HTTP is enabled, that the API key sits in plain `SharedPreferences`, that server URLs are `http://…`, and that the whole conversation is replayed to the provider. All four changed — history is now capped by `settings.historyLimit` (default 40).
-4. **No automated device test.** Verification is a manual procedure; a device test would need an instrumentation target that does not exist yet.
-5. **`stdio` transport** needs a local MCP binary, so it is only practical on a rooted device or inside Termux.
+- **The stdio transport is not reachable from the phone UI.** The app configures every server by URL, so `StdioMcpTransport` is exercised by the test harness and by desktop reuse only. On a phone it would also need a binary built for the device's ABI. Putting it in the app means a transport field in the server config and a command field in the edit screen - a spec change, not a patch.
+- **The catalogue is a snapshot from 2026-10-29.** The public endpoints are third-party and can change or disappear; `python tools/verify_catalog.py` re-checks them.
+- **Paths not exercised by hand on the device:** the per-tool auto-approve toggle, the export/import buttons, the active-server restore and the Re-trust flow.
 
 ## How work moves here
 

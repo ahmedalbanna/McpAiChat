@@ -13,21 +13,21 @@ outside this repository, in `../mcp-ai-chat-re/`).
 
 ## Features
 
-| Area                      | What it does                                                                                                                                                                                      |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **MCP client**            | JSON-RPC 2.0, `initialize` handshake, `tools/list`, `tools/call`, `resources/list`, `resources/read`, `prompts/list`, `prompts/get`, `ping`                                                       |
-| **Transports**            | Streamable HTTP (with SSE replies and `Mcp-Session-Id` tracking) and stdio (local process)                                                                                                        |
-| **AI provider**           | OpenAI-compatible `/chat/completions` with SSE streaming and native tool/function calling — works with OpenAI, OpenRouter, Groq, Together, LiteLLM, vLLM, Ollama's `/v1` shim and `api.hcnsec.cn` |
-| **Reasoning models**      | Streams `delta.reasoning` / `delta.reasoning_content` and shows the trace above the answer                                                                                                        |
-| **Model picker**          | Loads the provider's live model list from `GET /v1/models`                                                                                                                                        |
-| **Tool loop**             | `user → LLM → tool_calls → MCP tools/call → tool result → LLM → answer`, bounded to 8 rounds                                                                                                      |
-| **Tool approval**         | Every tool call asks first — tool name, owning server and arguments — with optional per-tool auto-approval that can be revoked                                                                    |
-| **Free server catalogue** | 33 keyless public MCP servers, each verified with a live handshake; suggestions only, all editable                                                                                                |
-| **Chat UI**               | Streaming assistant bubbles, dedicated tool-call cards (arguments + result + status), status banner, per-server enable switch                                                                     |
-| **Storage**               | SQLite conversations and messages; the assistant answer is persisted while it streams                                                                                                             |
-| **Servers screen**        | Add / edit / enable / delete MCP servers, live connection probe, tool catalogue, JSON export and import                                                                                           |
-| **Settings screen**       | API key, base URL, model, system prompt, temperature, history limit, "allow tools" switch                                                                                                         |
-| **Security**              | HTTPS only (cleartext is refused except on loopback), optional SPKI certificate pinning per trusted server, AES-256-GCM encrypted preferences backed by the Android Keystore                      |
+| Area                      | What it does                                                                                                                                                                                                                   |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **MCP client**            | JSON-RPC 2.0, `initialize` handshake, `tools/list`, `tools/call`, `resources/list`, `resources/read`, `prompts/list`, `prompts/get`, `ping`                                                                                    |
+| **Transports**            | Streamable HTTP (with SSE replies and `Mcp-Session-Id` tracking) is what the app uses. A stdio transport (local process) exists in the client library and is covered by tests, but the phone UI configures servers by URL only |
+| **AI provider**           | OpenAI-compatible `/chat/completions` with SSE streaming and native tool/function calling — works with OpenAI, OpenRouter, Groq, Together, LiteLLM, vLLM, Ollama's `/v1` shim and `api.hcnsec.cn`                              |
+| **Reasoning models**      | Streams `delta.reasoning` / `delta.reasoning_content` and shows the trace above the answer                                                                                                                                     |
+| **Model picker**          | Loads the provider's live model list from `GET /v1/models`                                                                                                                                                                     |
+| **Tool loop**             | `user → LLM → tool_calls → MCP tools/call → tool result → LLM → answer`, bounded to 8 rounds                                                                                                                                   |
+| **Tool approval**         | Every tool call asks first — tool name, owning server and arguments — with optional per-tool auto-approval that can be revoked                                                                                                 |
+| **Free server catalogue** | 33 keyless public MCP servers, each verified with a live handshake; suggestions only, all editable                                                                                                                             |
+| **Chat UI**               | Streaming assistant bubbles, dedicated tool-call cards (arguments + result + status), status banner, per-server enable switch                                                                                                  |
+| **Storage**               | SQLite conversations and messages; the assistant answer is persisted while it streams                                                                                                                                          |
+| **Servers screen**        | Add / edit / enable / delete MCP servers, live connection probe, tool catalogue, JSON export and import                                                                                                                        |
+| **Settings screen**       | API key, base URL, model, system prompt, temperature, history limit, "allow tools" switch                                                                                                                                      |
+| **Security**              | HTTPS only (cleartext is refused except on loopback), optional SPKI certificate pinning per trusted server, AES-256-GCM encrypted preferences backed by the Android Keystore                                                   |
 
 No third-party runtime dependencies beyond AndroidX, Material and
 `kotlinx-coroutines`: JSON uses the platform `org.json`, HTTP uses
@@ -108,6 +108,15 @@ Unit tests:
 ```bash
 gradle :app:testDebugUnitTest
 # -> app/build/test-results/testDebugUnitTest/
+```
+
+Device tests — these cover what the JVM cannot: the Android Keystore, SQLite,
+the Android HTTP stack and the network security config (a config that fails to
+parse on API 26 silently kills every HTTPS call in the app):
+
+```bash
+gradle :app:connectedDebugAndroidTest
+# -> app/build/reports/androidTests/connected/debug/
 ```
 
 ---
@@ -269,6 +278,18 @@ Both, plus the `adb reverse` tunnels, are started by:
 powershell tools\start_test_servers.ps1
 ```
 
+The same server is also available over **stdio** — newline-delimited JSON-RPC on
+stdin/stdout, which is what a local MCP binary speaks:
+
+```bash
+python tools/stdio_mcp_server.py
+```
+
+That script is the reference binary the `stdio` transport is tested against. It
+is also what you need on a phone to use the `stdio` transport at all: the app
+configures servers by URL, so a `stdio` server can only be reached through the
+client library or a device that can run a process of its own.
+
 ---
 
 ## Notes and limits
@@ -276,8 +297,9 @@ powershell tools\start_test_servers.ps1
 - The app sends the conversation history to the provider on every turn. The
   amount sent is capped by **Settings → history limit** (`settings.historyLimit`,
   default 40 turns; the slider offers 4–120 in steps of 4).
-- `stdio` transport needs a local MCP binary, which is only practical on a
-  rooted device or inside Termux.
+- The `stdio` transport needs a local MCP binary that can run on the device,
+  which is only practical on a rooted device or inside Termux. The phone UI
+  configures servers by URL, so it does not reach the `stdio` transport at all.
 - Export writes the server list as JSON with the auth header values and the
   SPKI pins omitted — the export screen never leaks them. Importing a JSON file
   restores the servers it names; check the file before sharing it.

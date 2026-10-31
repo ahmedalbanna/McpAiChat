@@ -7,6 +7,7 @@ Android client (Kotlin, `com.mcpai.chat`) for the Model Context Protocol: it con
 - `gradle app:assembleDebug` — build the APK (this repo has **no `gradlew` wrapper**; use the system Gradle. JDK 21 toolchain, Java 17 bytecode).
 - `gradle app:compileDebugKotlin` — typecheck.
 - `gradle app:testDebugUnitTest` — unit tests; XML results land in `app/build/test-results/testDebugUnitTest/`.
+- `gradle app:connectedDebugAndroidTest` — device tests on the attached phone; they cover the Keystore, SQLite, the HTTP stack and the network security config, none of which the JVM can reach. Results land in `app/build/reports/androidTests/connected/debug/`.
 - The pre-commit hook (Husky) runs typecheck + tests; lint-staged runs Prettier over staged JSON/MD/XML/YAML.
 - Stage source paths explicitly — `git add -A` fails on long filenames under `app/build/`.
 
@@ -16,8 +17,10 @@ Android client (Kotlin, `com.mcpai.chat`) for the Model Context Protocol: it con
 | --------------------------------- | -------------------------------------------------------------------------------- |
 | Server config model               | `app/src/main/java/com/mcpai/chat/mcp/McpModels.kt`                              |
 | MCP client and transports         | `mcp/McpClient.kt`, `mcp/McpTransport.kt`, `mcp/HttpMcpTransport.kt`             |
+| stdio transport                   | `mcp/StdioMcpTransport.kt` (reference server: `tools/stdio_mcp_server.py`)       |
 | Connection state and tool routing | `mcp/McpRegistry.kt`                                                             |
 | Certificate pinning               | `mcp/SpkiPinVerifier.kt` (decision), `mcp/HttpMcpTransport.kt` (enforcement)     |
+| Pin survival across edits         | `mcp/SpkiPinPolicy.kt`                                                           |
 | Retry policy                      | `mcp/ConnectionRetryPolicy.kt`                                                   |
 | URL rules                         | `mcp/ServerUrlValidator.kt`                                                      |
 | Encrypted settings                | `data/EncryptedPreferences.kt`, `data/Settings.kt`                               |
@@ -28,6 +31,7 @@ Android client (Kotlin, `com.mcpai.chat`) for the Model Context Protocol: it con
 | LLM provider                      | `llm/OpenAiProvider.kt`                                                          |
 | Error categories                  | `util/ChatError.kt` (`ErrorClassifier`)                                          |
 | Server and chat UI                | `ui/ServersActivity.kt`, `ui/ServerEditActivity.kt`, `ui/MainActivity.kt`        |
+| Device-only tests                 | `app/src/androidTest/java/com/mcpai/chat/`                                       |
 
 ## Conventions
 
