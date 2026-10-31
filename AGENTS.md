@@ -50,6 +50,7 @@ Android client (Kotlin, `com.mcpai.chat`) for the Model Context Protocol: it con
 
 ## Docs
 
+- `CONTEXT.md` — project briefing: why the app is shaped this way, what ships today, what is left.
 - `GLOSSARY.md` — canonical domain vocabulary.
 - `docs/spec/mcp-server-management.md` — authoritative spec: requirements, data model, acceptance criteria.
 - `FREE-MCP-SERVERS.md` — catalogue of suggested public MCP servers.
