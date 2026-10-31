@@ -16,6 +16,7 @@ import com.mcpai.chat.mcp.McpClient
 import com.mcpai.chat.mcp.McpServerConfig
 import com.mcpai.chat.mcp.ServerUrlProblem
 import com.mcpai.chat.mcp.ServerUrlValidator
+import com.mcpai.chat.mcp.SpkiPinPolicy
 import com.mcpai.chat.util.ChatError
 import com.mcpai.chat.util.ErrorClassifier
 import kotlinx.coroutines.Dispatchers
@@ -39,6 +40,7 @@ class ServerEditActivity : AppCompatActivity() {
     private lateinit var timeoutField: EditText
     private lateinit var trustedSwitch: MaterialSwitch
     private var existingId: String? = null
+    private var existingConfig: McpServerConfig? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -55,6 +57,7 @@ class ServerEditActivity : AppCompatActivity() {
         existingId = intent.getStringExtra(EXTRA_ID)
         if (existingId != null) {
             settings.servers().firstOrNull { it.id == existingId }?.let { config ->
+                existingConfig = config
                 nameField.setText(config.name)
                 urlField.setText(config.url)
                 authHeaderNameField.setText(config.authHeaderName.orEmpty())
@@ -73,18 +76,31 @@ class ServerEditActivity : AppCompatActivity() {
         }
     }
 
-    private fun currentConfig(): McpServerConfig = McpServerConfig(
-        id = existingId ?: UUID.randomUUID().toString(),
-        name = nameField.text.toString().trim().ifEmpty { "MCP server" },
-        url = HttpMcpTransport.normaliseUrl(urlField.text.toString().trim()),
-        enabled = true,
-        authHeaderName = authHeaderNameField.text.toString().trim().takeIf { it.isNotEmpty() },
-        authHeaderValue = authHeaderValueField.text.toString().trim().takeIf { it.isNotEmpty() },
-        timeoutSeconds = timeoutField.text.toString().trim().toIntOrNull() ?: 30,
-        customHeaders = emptyMap(),
-        isTrusted = trustedSwitch.isChecked,
-        spkiPin = null,
-    )
+    /**
+     * The configuration as the form currently describes it.
+     *
+     * Fields the form does not show — the SPKI pin, custom headers, the
+     * enabled flag — are carried over from the stored configuration, so
+     * editing a server never silently drops them. The pin is kept only while
+     * the server stays trusted and points at the same host.
+     */
+    private fun currentConfig(): McpServerConfig {
+        val existing = existingConfig
+        val url = HttpMcpTransport.normaliseUrl(urlField.text.toString().trim())
+        val isTrusted = trustedSwitch.isChecked
+        return McpServerConfig(
+            id = existingId ?: UUID.randomUUID().toString(),
+            name = nameField.text.toString().trim().ifEmpty { "MCP server" },
+            url = url,
+            enabled = existing?.enabled ?: true,
+            authHeaderName = authHeaderNameField.text.toString().trim().takeIf { it.isNotEmpty() },
+            authHeaderValue = authHeaderValueField.text.toString().trim().takeIf { it.isNotEmpty() },
+            timeoutSeconds = timeoutField.text.toString().trim().toIntOrNull() ?: 30,
+            customHeaders = existing?.customHeaders ?: emptyMap(),
+            isTrusted = isTrusted,
+            spkiPin = SpkiPinPolicy.pinAfterEdit(existing, url, isTrusted),
+        )
+    }
 
     private fun save() {
         val url = urlField.text.toString().trim()
