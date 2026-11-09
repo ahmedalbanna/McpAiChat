@@ -174,13 +174,15 @@ class ChatAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     class UserHolder(view: View) : RecyclerView.ViewHolder(view) {
         private val bubble: TextView = view.findViewById(R.id.bubble)
+        private val attachmentPreview: View = view.findViewById(R.id.attachmentPreview)
         private val attachmentName: TextView = view.findViewById(R.id.attachmentName)
+
         fun bind(row: ChatRow.User) {
             bubble.text = row.text
             if (row.attachmentName.isNullOrBlank()) {
-                attachmentName.visibility = View.GONE
+                attachmentPreview.visibility = View.GONE
             } else {
-                attachmentName.visibility = View.VISIBLE
+                attachmentPreview.visibility = View.VISIBLE
                 attachmentName.text = row.attachmentName
             }
         }

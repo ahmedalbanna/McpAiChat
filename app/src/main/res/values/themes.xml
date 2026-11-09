@@ -105,6 +105,11 @@
     </style>
 
     <style name="TextAppearance.McpAiChat.Bubble" parent="TextAppearance.McpAiChat.BodyLarge">
+        <!-- Chat text is a touch denser than body copy; Arabic still keeps open -->
+        <!-- line height rather than collapsing to Latin line metrics. -->
+        <item name="android:textSize">15sp</item>
+        <item name="android:lineSpacingMultiplier">1.38</item>
+        <item name="android:letterSpacing">0</item>
         <item name="android:textColor">?attr/colorOnSurface</item>
     </style>
 
@@ -121,10 +126,10 @@
       the tool cards stay visually distinct from the list cards.
     -->
     <style name="Widget.McpAiChat.Bubble" parent="">
-        <item name="android:paddingStart">14dp</item>
-        <item name="android:paddingEnd">14dp</item>
-        <item name="android:paddingTop">10dp</item>
-        <item name="android:paddingBottom">10dp</item>
+        <item name="android:paddingStart">16dp</item>
+        <item name="android:paddingEnd">16dp</item>
+        <item name="android:paddingTop">11dp</item>
+        <item name="android:paddingBottom">11dp</item>
     </style>
 
     <style name="Widget.McpAiChat.CodeBlock" parent="">
