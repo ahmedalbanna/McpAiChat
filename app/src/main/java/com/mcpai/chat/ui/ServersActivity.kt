@@ -14,6 +14,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.materialswitch.MaterialSwitch
+import androidx.core.content.ContextCompat
 import com.mcpai.chat.R
 import com.mcpai.chat.data.ChatRepository
 import com.mcpai.chat.data.Settings
@@ -35,6 +36,7 @@ class ServersActivity : AppCompatActivity() {
     private lateinit var settings: Settings
     private lateinit var adapter: ServerAdapter
     private lateinit var emptyView: TextView
+    private lateinit var serversSummary: TextView
 
     /**
      * Receives a server picked from the free-server catalogue and saves it.
@@ -90,6 +92,7 @@ class ServersActivity : AppCompatActivity() {
             adapter = this@ServersActivity.adapter
         }
         emptyView = findViewById(R.id.emptyView)
+        serversSummary = findViewById(R.id.serversSummary)
 
         findViewById<MaterialButton>(R.id.addButton).setOnClickListener {
             startActivity(ServerEditActivity.intent(this, null))
@@ -141,6 +144,23 @@ class ServersActivity : AppCompatActivity() {
         }
     }
 
+    /** Refresh the trust/capability line in the intro card. */
+    private fun updateSummary(configs: List<McpServerConfig>, probes: Map<String, ServerProbe>) {
+        if (configs.isEmpty()) {
+            serversSummary.visibility = View.GONE
+            return
+        }
+        serversSummary.visibility = View.VISIBLE
+        val enabled = configs.count { it.enabled }
+        val toolCount = probes.values.filterIsInstance<ServerProbe.Ok>().sumOf { it.toolCount }
+        val failures = probes.values.count { it is ServerProbe.Failed }
+        serversSummary.text = if (failures == 0) {
+            getString(R.string.servers_summary, configs.size, enabled, toolCount)
+        } else {
+            getString(R.string.servers_summary_failures, configs.size, enabled, toolCount, failures)
+        }
+    }
+
     private fun refresh() {
         lifecycleScope.launch {
             val repo = ChatRepository.get(applicationContext)
@@ -150,6 +170,7 @@ class ServersActivity : AppCompatActivity() {
                 val probeMap = probes.associateBy { serverIdOf(it) }
                 adapter.submit(configs, probeMap)
                 emptyView.visibility = if (configs.isEmpty()) View.VISIBLE else View.GONE
+                updateSummary(configs, probeMap)
 
                 // Show specific error dialogs for failed probes (T-07).
                 for (probe in probes) {
@@ -242,17 +263,36 @@ class ServerAdapter(
         holder.enabled.setOnCheckedChangeListener { _, checked -> onToggle(config, checked) }
         holder.itemView.setOnClickListener { onClick(config) }
         holder.trustedBadge.visibility = if (config.isTrusted) View.VISIBLE else View.GONE
-        holder.status.text = when (val probe = probes[config.id]) {
-            is ServerProbe.Ok -> "Connected · ${probe.toolCount} tools"
-            is ServerProbe.Failed -> "Failed: ${probe.reason.take(120)}"
-            null -> "Not tested"
+        when (val probe = probes[config.id]) {
+            is ServerProbe.Ok -> {
+                holder.status.text = holder.itemView.context.getString(R.string.status_connected, probe.toolCount)
+                bindStatus(holder, R.drawable.status_ok, R.color.tool_ok)
+            }
+
+            is ServerProbe.Failed -> {
+                holder.status.text = "${holder.itemView.context.getString(R.string.status_failed)}: ${probe.reason.take(72)}"
+                bindStatus(holder, R.drawable.status_failed, R.color.tool_accent)
+            }
+
+            null -> {
+                holder.status.text = holder.itemView.context.getString(R.string.status_untested)
+                bindStatus(holder, R.drawable.status_idle, R.color.status_idle)
+            }
         }
+    }
+
+    private fun bindStatus(holder: Holder, dotResource: Int, colorResource: Int) {
+        holder.statusDot.setBackgroundResource(dotResource)
+        holder.status.setTextColor(
+            ContextCompat.getColor(holder.itemView.context, colorResource),
+        )
     }
 
     class Holder(view: android.view.View) : RecyclerView.ViewHolder(view) {
         val name: TextView = view.findViewById(R.id.serverName)
         val url: TextView = view.findViewById(R.id.serverUrl)
         val status: TextView = view.findViewById(R.id.serverStatus)
+        val statusDot: android.view.View = view.findViewById(R.id.statusDot)
         val enabled: MaterialSwitch = view.findViewById(R.id.enabledSwitch)
         val trustedBadge: TextView = view.findViewById(R.id.trustedBadge)
     }

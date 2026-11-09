@@ -19,5 +19,6 @@
     <color name="composer_voice_container">#FF402626</color>
     <color name="composer_voice_fg">#FFFF7B7B</color>
     <color name="composer_send_disabled_bg">#FF2F2F2F</color>
+    <color name="status_idle">#FF777771</color>
     <color name="composer_send_disabled_fg">#FF626262</color>
 </resources>
