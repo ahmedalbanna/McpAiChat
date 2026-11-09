@@ -194,7 +194,7 @@ class MainActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.rows.collectLatest { rows ->
+                viewModel.displayedRows.collectLatest { rows ->
                     adapter.submit(rows)
                     emptyView.visibility = if (rows.isEmpty()) View.VISIBLE else View.GONE
                     if (rows.isNotEmpty()) list.scrollToPosition(rows.size - 1)

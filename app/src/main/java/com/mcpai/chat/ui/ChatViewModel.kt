@@ -8,8 +8,11 @@ import com.mcpai.chat.data.ChatRepository
 import com.mcpai.chat.data.StoredMessage
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /** UI state for a file attached to the next message. */
@@ -30,6 +33,10 @@ data class ComposerAttachment(
  */
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
+    private companion object {
+        const val PENDING_THINKING_ID = -1L
+    }
+
     val repo: ChatRepository = ChatRepository.get(application)
 
     private val _rows = MutableStateFlow<List<ChatRow>>(emptyList())
@@ -43,6 +50,21 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _sending = MutableStateFlow(false)
     val sending: StateFlow<Boolean> = _sending.asStateFlow()
+
+    /**
+     * Rows to paint, including a temporary "Thinking…" marker after the last
+     * persisted turn while the provider is between model calls. It is never
+     * persisted and disappears as soon as the streamed assistant row (or a
+     * running tool row) takes over.
+     */
+    val displayedRows: StateFlow<List<ChatRow>> =
+        combine(_rows, _sending) { rows, sending ->
+            if (shouldShowThinking(rows, sending)) {
+                rows + ChatRow.Thinking(PENDING_THINKING_ID)
+            } else {
+                rows
+            }
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private val _attachment = MutableStateFlow<ComposerAttachment?>(null)
     val attachment: StateFlow<ComposerAttachment?> = _attachment.asStateFlow()
@@ -182,6 +204,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     override fun onCleared() {
         turnJob?.cancel()
         super.onCleared()
+    }
+
+    /** Whether the next row should be an ephemeral working indicator. */
+    private fun shouldShowThinking(rows: List<ChatRow>, sending: Boolean): Boolean {
+        if (!sending || rows.isEmpty()) return false
+        return when (val last = rows.last()) {
+            // The assistant bubble/row itself renders the thinking label while it streams.
+            is ChatRow.Assistant -> !last.streaming
+            // Running tool cards already carry their own progress indicator.
+            is ChatRow.Tool -> !last.running
+            else -> true
+        }
     }
 
     private fun StoredMessage.toRow(): ChatRow = when (role) {

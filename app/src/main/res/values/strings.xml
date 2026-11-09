@@ -15,6 +15,7 @@
     <string name="action_stop_voice_input">Stop voice input</string>
     <string name="voice_speak_now">Listening… speak now</string>
     <string name="voice_finalizing">Processing…</string>
+    <string name="ai_thinking">Thinking…</string>
     <string name="sending_attachment">Sending %1$s…</string>
     <string name="action_voice_input">Voice input</string>
     <string name="action_servers">MCP servers</string>

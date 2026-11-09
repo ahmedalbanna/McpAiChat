@@ -38,6 +38,9 @@ sealed interface ChatRow {
         val running: Boolean,
         val declined: Boolean = false,
     ) : ChatRow
+
+    /** A temporary row shown while the app is waiting for the next model turn. */
+    data class Thinking(val id: Long) : ChatRow
 }
 
 /** Adapter that renders [ChatRow]s and supports incremental text updates. */
@@ -137,6 +140,7 @@ class ChatAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
         is ChatRow.User -> TYPE_USER
         is ChatRow.Assistant -> TYPE_ASSISTANT
         is ChatRow.Tool -> TYPE_TOOL
+        is ChatRow.Thinking -> TYPE_THINKING
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
@@ -144,6 +148,7 @@ class ChatAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
         return when (viewType) {
             TYPE_USER -> UserHolder(inflater.inflate(R.layout.item_message_user, parent, false))
             TYPE_ASSISTANT -> AssistantHolder(inflater.inflate(R.layout.item_message_assistant, parent, false))
+            TYPE_THINKING -> ThinkingHolder(inflater.inflate(R.layout.item_message_thinking, parent, false))
             else -> ToolHolder(inflater.inflate(R.layout.item_tool_call, parent, false))
         }
     }
@@ -153,6 +158,7 @@ class ChatAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
             is ChatRow.User -> (holder as UserHolder).bind(row)
             is ChatRow.Assistant -> (holder as AssistantHolder).bind(row)
             is ChatRow.Tool -> (holder as ToolHolder).bind(row)
+            is ChatRow.Thinking -> Unit
         }
     }
 
@@ -192,8 +198,6 @@ class ChatAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
                 reasoning.visibility = View.GONE
                 return
             }
-            bubble.visibility = View.VISIBLE
-            bubble.setText(row.text.toStyledText(), TextView.BufferType.SPANNABLE)
 
             if (row.reasoning.isEmpty()) {
                 reasoning.visibility = View.GONE
@@ -202,6 +206,17 @@ class ChatAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
                 val trace = row.reasoning.trim()
                 reasoning.text = if (trace.length > 400) "… " + trace.takeLast(400) else trace
             }
+
+            if (row.text.isEmpty() && row.streaming) {
+                // The provider has opened the assistant turn but no answer text is
+                // visible yet: render the working label rather than an empty bubble.
+                bubble.visibility = if (row.reasoning.isEmpty()) View.VISIBLE else View.GONE
+                bubble.setText(itemView.context.getString(R.string.ai_thinking), TextView.BufferType.NORMAL)
+                return
+            }
+
+            bubble.visibility = View.VISIBLE
+            bubble.setText(row.text.toStyledText(), TextView.BufferType.SPANNABLE)
         }
 
         /**
@@ -262,10 +277,13 @@ class ChatAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
         }.getOrDefault(raw)
     }
 
+    class ThinkingHolder(view: View) : RecyclerView.ViewHolder(view)
+
     companion object {
         private const val TYPE_USER = 0
         private const val TYPE_ASSISTANT = 1
         private const val TYPE_TOOL = 2
+        private const val TYPE_THINKING = 3
         private const val PAYLOAD_TEXT = "text"
     }
 }
