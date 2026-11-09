@@ -47,6 +47,7 @@
     <string name="voice_speak_now">Listening… speak now</string>
     <string name="voice_finalizing">Processing…</string>
     <string name="ai_thinking">Thinking…</string>
+    <string name="tools_used_calls">Tools used: %1$d · Calls: %2$d</string>
     <string name="sending_attachment">Sending %1$s…</string>
     <string name="action_voice_input">Voice input</string>
     <string name="action_servers">MCP servers</string>

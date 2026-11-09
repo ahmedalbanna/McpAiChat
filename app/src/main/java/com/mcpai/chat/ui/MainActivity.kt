@@ -137,7 +137,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        adapter = ChatAdapter()
+        adapter = ChatAdapter { groupId -> viewModel.toggleToolGroup(groupId) }
         list = findViewById(R.id.messageList)
         list.layoutManager = LinearLayoutManager(this).apply { stackFromEnd = true }
         list.adapter = adapter
@@ -195,9 +195,13 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.displayedRows.collectLatest { rows ->
+                    // Keep the viewport pinned to the bottom only when it was
+                    // already there; otherwise every token — or a tool group the
+                    // user just expanded — would yank the scroll position.
+                    val atBottom = !list.canScrollVertically(1)
                     adapter.submit(rows)
                     emptyView.visibility = if (rows.isEmpty()) View.VISIBLE else View.GONE
-                    if (rows.isNotEmpty()) list.scrollToPosition(rows.size - 1)
+                    if (rows.isNotEmpty() && atBottom) list.scrollToPosition(rows.size - 1)
                 }
             }
         }

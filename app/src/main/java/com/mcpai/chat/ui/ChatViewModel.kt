@@ -45,6 +45,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _status = MutableStateFlow<String?>(null)
     val status: StateFlow<String?> = _status.asStateFlow()
 
+    /** Group ids (first tool-call row id) the user has expanded on this screen. */
+    private val expandedToolGroups = MutableStateFlow<Set<Long>>(emptySet())
+
     private val _approval = MutableStateFlow<ChatEvent.ToolApprovalRequested?>(null)
     val approval: StateFlow<ChatEvent.ToolApprovalRequested?> = _approval.asStateFlow()
 
@@ -52,17 +55,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     val sending: StateFlow<Boolean> = _sending.asStateFlow()
 
     /**
-     * Rows to paint, including a temporary "Thinking…" marker after the last
-     * persisted turn while the provider is between model calls. It is never
-     * persisted and disappears as soon as the streamed assistant row (or a
-     * running tool row) takes over.
+     * Rows to paint: consecutive tool calls are coalesced into one compact
+     * [ChatRow.ToolGroup] per run, collapsed by default, with a temporary
+     * "Thinking…" marker appended while the provider is between model calls.
+     * Neither the grouping nor the thinking row is persisted.
      */
     val displayedRows: StateFlow<List<ChatRow>> =
-        combine(_rows, _sending) { rows, sending ->
-            if (shouldShowThinking(rows, sending)) {
-                rows + ChatRow.Thinking(PENDING_THINKING_ID)
+        combine(_rows, _sending, expandedToolGroups) { rows, sending, expanded ->
+            val grouped = coalesceToolRuns(rows, expanded)
+            if (shouldShowThinking(grouped, sending)) {
+                grouped + ChatRow.Thinking(PENDING_THINKING_ID)
             } else {
-                rows
+                grouped
             }
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
@@ -206,13 +210,52 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         super.onCleared()
     }
 
+    /** Flips one coalesced tool-call group between collapsed and expanded. */
+    fun toggleToolGroup(groupId: Long) {
+        expandedToolGroups.value = expandedToolGroups.value.let { current ->
+            if (groupId in current) current - groupId else current + groupId
+        }
+    }
+
+    /**
+     * Coalesces runs of consecutive tool rows into a [ChatRow.ToolGroup].
+     * A tool separated from another tool by any other row opens a new group.
+     */
+    private fun coalesceToolRuns(rows: List<ChatRow>, expanded: Set<Long>): List<ChatRow> {
+        val result = ArrayList<ChatRow>(rows.size)
+        var pending = mutableListOf<ChatRow.Tool>()
+
+        fun flush() {
+            if (pending.isEmpty()) return
+            val first = pending.first()
+            result += ChatRow.ToolGroup(
+                id = first.id,
+                tools = pending.toList(),
+                expanded = first.id in expanded,
+            )
+            pending = mutableListOf()
+        }
+
+        for (row in rows) {
+            if (row is ChatRow.Tool) {
+                pending += row
+            } else {
+                flush()
+                result += row
+            }
+        }
+        flush()
+        return result
+    }
+
     /** Whether the next row should be an ephemeral working indicator. */
     private fun shouldShowThinking(rows: List<ChatRow>, sending: Boolean): Boolean {
         if (!sending || rows.isEmpty()) return false
         return when (val last = rows.last()) {
             // The assistant bubble/row itself renders the thinking label while it streams.
             is ChatRow.Assistant -> !last.streaming
-            // Running tool cards already carry their own progress indicator.
+            // A running tool group carries its own progress indicator.
+            is ChatRow.ToolGroup -> last.tools.none { it.running }
             is ChatRow.Tool -> !last.running
             else -> true
         }

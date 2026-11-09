@@ -11,7 +11,7 @@ import com.mcpai.chat.R
  * One row in the conversation.
  *
  * The row kinds mirror the reference apps: a user bubble, an assistant bubble,
- * and a dedicated card for a tool invocation.
+ * and one compact group row for consecutive tool calls.
  */
 sealed interface ChatRow {
 
@@ -41,10 +41,23 @@ sealed interface ChatRow {
 
     /** A temporary row shown while the app is waiting for the next model turn. */
     data class Thinking(val id: Long) : ChatRow
+
+    /**
+     * Consecutive tool calls grouped behind one compact marker:
+     * `Tools used: N · Calls: M`, collapsed by default. The [id] is the first
+     * call's row id and is what the expanded-set keys on.
+     */
+    data class ToolGroup(
+        val id: Long,
+        val tools: List<Tool>,
+        val expanded: Boolean,
+    ) : ChatRow
 }
 
 /** Adapter that renders [ChatRow]s and supports incremental text updates. */
-class ChatAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+class ChatAdapter(
+    private val onToolGroupToggle: (Long) -> Unit = { },
+) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     private val rows = mutableListOf<ChatRow>()
 
@@ -81,66 +94,14 @@ class ChatAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
         }
     }
 
-    fun add(row: ChatRow) {
-        rows.add(row)
-        notifyItemInserted(rows.size - 1)
-    }
-
-    /** Appends streamed text to an existing assistant row. */
-    fun appendAssistantText(id: Long, delta: String) {
-        val index = rows.indexOfFirst { it is ChatRow.Assistant && it.id == id }
-        if (index < 0) return
-        val current = rows[index] as ChatRow.Assistant
-        rows[index] = current.copy(text = current.text + delta)
-        notifyItemChanged(index, PAYLOAD_TEXT)
-    }
-
-    /** Appends a chunk of the model's reasoning trace to an assistant row. */
-    fun appendReasoning(id: Long, delta: String) {
-        val index = rows.indexOfFirst { it is ChatRow.Assistant && it.id == id }
-        if (index < 0) return
-        val current = rows[index] as ChatRow.Assistant
-        rows[index] = current.copy(reasoning = current.reasoning + delta)
-        notifyItemChanged(index, PAYLOAD_TEXT)
-    }
-
-    /** Marks a tool row as finished. */
-    fun completeTool(
-        id: Long,
-        result: String,
-        isError: Boolean,
-        declined: Boolean = false,
-    ) {
-        val index = rows.indexOfFirst { it is ChatRow.Tool && it.id == id }
-        if (index < 0) return
-        val current = rows[index] as ChatRow.Tool
-        rows[index] = current.copy(
-            result = result,
-            isError = isError,
-            running = false,
-            declined = declined,
-        )
-        notifyItemChanged(index)
-    }
-
-    /** Ends the streaming state of an assistant row. */
-    fun markAssistantFinished(id: Long) {
-        val index = rows.indexOfFirst { it is ChatRow.Assistant && it.id == id }
-        if (index < 0) return
-        val current = rows[index] as ChatRow.Assistant
-        rows[index] = current.copy(streaming = false)
-        notifyItemChanged(index, PAYLOAD_TEXT)
-    }
-
-    fun rowAt(position: Int): ChatRow? = rows.getOrNull(position)
-
     override fun getItemCount(): Int = rows.size
 
     override fun getItemViewType(position: Int): Int = when (rows[position]) {
         is ChatRow.User -> TYPE_USER
         is ChatRow.Assistant -> TYPE_ASSISTANT
-        is ChatRow.Tool -> TYPE_TOOL
+        is ChatRow.ToolGroup -> TYPE_TOOL_GROUP
         is ChatRow.Thinking -> TYPE_THINKING
+        is ChatRow.Tool -> TYPE_TOOL_GROUP // defensive; raw calls are coalesced upstream
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
@@ -149,7 +110,10 @@ class ChatAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
             TYPE_USER -> UserHolder(inflater.inflate(R.layout.item_message_user, parent, false))
             TYPE_ASSISTANT -> AssistantHolder(inflater.inflate(R.layout.item_message_assistant, parent, false))
             TYPE_THINKING -> ThinkingHolder(inflater.inflate(R.layout.item_message_thinking, parent, false))
-            else -> ToolHolder(inflater.inflate(R.layout.item_tool_call, parent, false))
+            else -> ToolGroupHolder(
+                inflater.inflate(R.layout.item_message_tool_group, parent, false),
+                onToolGroupToggle,
+            )
         }
     }
 
@@ -157,8 +121,10 @@ class ChatAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
         when (val row = rows[position]) {
             is ChatRow.User -> (holder as UserHolder).bind(row)
             is ChatRow.Assistant -> (holder as AssistantHolder).bind(row)
-            is ChatRow.Tool -> (holder as ToolHolder).bind(row)
+            is ChatRow.ToolGroup -> (holder as ToolGroupHolder).bind(row)
             is ChatRow.Thinking -> Unit
+            is ChatRow.Tool -> (holder as ToolGroupHolder)
+                .bind(ChatRow.ToolGroup(row.id, listOf(row), expanded = false))
         }
     }
 
@@ -229,54 +195,56 @@ class ChatAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
             if (this == "…") this else MarkdownStyler.render(this, itemView.context)
     }
 
-    class ToolHolder(view: View) : RecyclerView.ViewHolder(view) {
-        private val name: TextView = view.findViewById(R.id.toolName)
-        private val state: TextView = view.findViewById(R.id.toolState)
-        private val args: TextView = view.findViewById(R.id.args)
-        private val result: TextView = view.findViewById(R.id.result)
-        private val resultLabel: TextView = view.findViewById(R.id.resultLabel)
-        private val dot: View = view.findViewById(R.id.statusDot)
+    class ToolGroupHolder(view: View, private val onToggle: (Long) -> Unit) : RecyclerView.ViewHolder(view) {
+        private val header: View = view.findViewById(R.id.toolGroupHeader)
+        private val chevron: android.widget.ImageView = view.findViewById(R.id.toolGroupChevron)
+        private val summary: TextView = view.findViewById(R.id.toolGroupSummary)
+        private val progress: android.widget.ProgressBar = view.findViewById(R.id.toolGroupProgress)
+        private val details: View = view.findViewById(R.id.toolGroupDetails)
+        private val calls: TextView = view.findViewById(R.id.toolGroupCalls)
 
-        fun bind(row: ChatRow.Tool) {
-            name.text = row.name
-            args.text = prettify(row.args)
-            when {
-                row.running -> {
-                    state.setText(R.string.label_running)
-                    dot.setBackgroundResource(R.drawable.dot_running)
-                    result.visibility = View.GONE
-                    resultLabel.visibility = View.GONE
-                }
+        fun bind(row: ChatRow.ToolGroup) {
+            val context = itemView.context
+            val toolCount = row.tools.map { it.name }.distinct().size
+            val callCount = row.tools.size
+            val anyRunning = row.tools.any { it.running }
 
-                row.declined -> {
-                    state.setText(R.string.label_declined)
-                    dot.setBackgroundResource(R.drawable.dot_declined)
-                    showResult(row.result.orEmpty())
-                }
+            summary.text = context.getString(R.string.tools_used_calls, toolCount, callCount)
+            progress.visibility = if (anyRunning) View.VISIBLE else View.GONE
+            chevron.setImageResource(
+                if (row.expanded) R.drawable.ic_chevron_down else R.drawable.ic_chevron_right,
+            )
+            details.visibility = if (row.expanded) View.VISIBLE else View.GONE
+            calls.text = row.tools.joinToString("\n") { callLine(it, context) }
 
-                row.isError -> {
-                    state.setText(R.string.label_error)
-                    dot.setBackgroundResource(R.drawable.dot_error)
-                    showResult(row.result.orEmpty())
-                }
+            header.setOnClickListener { onToggle(row.id) }
+            header.contentDescription = summary.text
+        }
 
-                else -> {
-                    state.setText(R.string.label_done)
-                    dot.setBackgroundResource(R.drawable.dot_done)
-                    showResult(row.result.orEmpty())
-                }
+        private fun callLine(tool: ChatRow.Tool, context: android.content.Context): String {
+            val status = when {
+                tool.running -> context.getString(R.string.label_running)
+                tool.declined -> context.getString(R.string.label_declined)
+                tool.isError -> context.getString(R.string.label_error)
+                else -> context.getString(R.string.label_done)
+            }
+            // Keep the expanded list readable: successful calls are a name and a
+            // status; only failures and declines carry a short reason.
+            if (!tool.running && !tool.isError && !tool.declined) {
+                return "• ${tool.name} · $status"
+            }
+            val detail = tool.result
+                ?.lineSequence()
+                ?.firstOrNull { it.isNotBlank() }
+                ?.trim()
+                ?.take(80)
+                .orEmpty()
+            return if (detail.isEmpty()) {
+                "• ${tool.name} · $status"
+            } else {
+                "• ${tool.name} · $status · $detail"
             }
         }
-
-        private fun showResult(text: String) {
-            resultLabel.visibility = View.VISIBLE
-            result.visibility = View.VISIBLE
-            result.text = if (text.length > 1200) text.take(1200) + "…" else text
-        }
-
-        private fun prettify(raw: String): String = runCatching {
-            org.json.JSONObject(raw).toString(2)
-        }.getOrDefault(raw)
     }
 
     class ThinkingHolder(view: View) : RecyclerView.ViewHolder(view)
@@ -284,7 +252,7 @@ class ChatAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
     companion object {
         private const val TYPE_USER = 0
         private const val TYPE_ASSISTANT = 1
-        private const val TYPE_TOOL = 2
+        private const val TYPE_TOOL_GROUP = 2
         private const val TYPE_THINKING = 3
         private const val PAYLOAD_TEXT = "text"
     }
