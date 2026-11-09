@@ -143,7 +143,7 @@ class ServersActivity : AppCompatActivity() {
 
     private fun refresh() {
         lifecycleScope.launch {
-            val repo = ChatRepository(applicationContext)
+            val repo = ChatRepository.get(applicationContext)
             val configs = settings.servers()
             try {
                 val probes = repo.refreshServers(configs)
@@ -172,7 +172,6 @@ class ServersActivity : AppCompatActivity() {
                     is ChatError.Unknown -> Toast.makeText(this@ServersActivity, error.message, Toast.LENGTH_LONG).show()
                 }
             }
-            repo.close()
         }
     }
 

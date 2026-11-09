@@ -57,8 +57,13 @@ sealed interface ChatEvent {
  * Application-level facade: owns the database, the settings, the live MCP
  * connections and the chat engine, and turns everything into a stream of
  * [ChatEvent]s the UI can render.
+ *
+ * One instance exists per process (see [com.mcpai.chat.ChatApplication]).
+ * Activities obtain it with [get] and never call [close] — an activity going
+ * away is not the app going away, and closing the database mid-turn races with
+ * the coroutine that is writing the partial answer.
  */
-class ChatRepository(context: Context) {
+class ChatRepository internal constructor(context: Context) {
 
     val settings: Settings = Settings.get(context)
     private val db = ChatDatabase(context)
@@ -70,6 +75,9 @@ class ChatRepository(context: Context) {
 
     private val _serverProbes = MutableStateFlow<List<ServerProbe>>(emptyList())
     val serverProbes: StateFlow<List<ServerProbe>> = _serverProbes.asStateFlow()
+
+    /** Whether the MCP tool catalogue is already known (see [McpRegistry.isWarm]). */
+    val isWarm: Boolean get() = registry.isWarm
 
     private val _status = MutableStateFlow("")
     val status: StateFlow<String> = _status.asStateFlow()
@@ -207,9 +215,11 @@ class ChatRepository(context: Context) {
         }
         send(ChatEvent.UserMessage(userId, userText, attachmentPath, attachmentName))
 
-        // Lazy connect: connect MCP servers on first message, not at app startup.
-        if (_tools.value.isEmpty() && settings.servers().isNotEmpty()) {
-            refreshServers()
+        // Warm the tool catalogue if the screen opened before the handshake
+        // finished. A server that exposes zero tools is already connected, so
+        // this must not be keyed on whether any tool was found.
+        if (!registry.isWarm && settings.servers().any { it.enabled }) {
+            runCatching { refreshServers() }
         }
 
         val history = withContext(Dispatchers.IO) { db.messages(conversationId) }
@@ -410,5 +420,25 @@ class ChatRepository(context: Context) {
     fun close() {
         registry.closeAll()
         db.close()
+    }
+
+    companion object {
+        @Volatile
+        private var instance: ChatRepository? = null
+
+        /**
+         * The one repository for this process.
+         *
+         * Prefer the [com.mcpai.chat.ChatApplication] instance when the context
+         * belongs to a running app; the synchronized fallback only serves
+         * instrumented tests and other contexts without an application owner.
+         */
+        fun get(context: Context): ChatRepository {
+            val app = context.applicationContext
+            if (app is com.mcpai.chat.ChatApplication) return app.repository
+            return instance ?: synchronized(this) {
+                instance ?: ChatRepository(app).also { instance = it }
+            }
+        }
     }
 }

@@ -11,7 +11,8 @@
     app:cardBackgroundColor="@color/tool_card_bg"
     app:cardCornerRadius="14dp"
     app:cardElevation="0dp"
-    app:strokeWidth="0dp">
+    app:strokeColor="@color/divider"
+    app:strokeWidth="1dp">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -44,7 +45,8 @@
                 android:id="@+id/toolState"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textAppearance="@style/TextAppearance.McpAiChat.Meta"
+                android:textAppearance="@style/TextAppearance.McpAiChat.LabelSmall"
+                android:textColor="?android:attr/textColorSecondary"
                 tools:text="running…" />
         </LinearLayout>
 
@@ -54,18 +56,19 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:text="@string/label_arguments"
-            android:textAppearance="@style/TextAppearance.McpAiChat.Meta" />
+            android:textAppearance="@style/TextAppearance.McpAiChat.LabelSmall"
+            android:textColor="?android:attr/textColorSecondary" />
 
         <TextView
             android:id="@+id/args"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
+            android:layout_marginTop="3dp"
             android:background="@drawable/code_block"
             android:fontFamily="monospace"
-            android:padding="8dp"
+            android:padding="10dp"
+            android:textAppearance="@style/TextAppearance.McpAiChat.Code"
             android:textIsSelectable="true"
-            android:textSize="12sp"
             tools:text="{&quot;path&quot;: &quot;/tmp&quot;}" />
 
         <TextView
@@ -74,20 +77,21 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:text="@string/label_tool_result"
-            android:textAppearance="@style/TextAppearance.McpAiChat.Meta"
+            android:textAppearance="@style/TextAppearance.McpAiChat.LabelSmall"
+            android:textColor="?android:attr/textColorSecondary"
             android:visibility="gone" />
 
         <TextView
             android:id="@+id/result"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
+            android:layout_marginTop="3dp"
             android:background="@drawable/code_block"
             android:fontFamily="monospace"
             android:maxLines="14"
-            android:padding="8dp"
+            android:padding="10dp"
+            android:textAppearance="@style/TextAppearance.McpAiChat.Code"
             android:textIsSelectable="true"
-            android:textSize="12sp"
             android:visibility="gone"
             tools:text="3 matches" />
 

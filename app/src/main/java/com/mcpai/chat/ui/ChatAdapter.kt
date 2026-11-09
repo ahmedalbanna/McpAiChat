@@ -46,9 +46,36 @@ class ChatAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
     private val rows = mutableListOf<ChatRow>()
 
     fun submit(newRows: List<ChatRow>) {
+        val prev = rows.toList()
         rows.clear()
         rows.addAll(newRows)
-        notifyDataSetChanged()
+
+        // Diffs the new state against what is on screen instead of calling
+        // `notifyDataSetChanged` on every streamed token: only an inserted row
+        // costs work, and a text update in an existing row reuses the payload
+        // path that keeps the bubble's spans without re-binding everything.
+        val common = minOf(prev.size, newRows.size)
+        var changed = false
+        for (index in 0 until common) {
+            val oldRow = prev[index]
+            val newRow = newRows[index]
+            if (oldRow === newRow) continue
+            if (oldRow is ChatRow.Assistant && newRow is ChatRow.Assistant && oldRow.id == newRow.id) {
+                notifyItemChanged(index, PAYLOAD_TEXT)
+                changed = true
+            } else if (oldRow != newRow) {
+                notifyItemRangeChanged(index, 1)
+                changed = true
+            }
+        }
+        if (newRows.size > prev.size) {
+            notifyItemRangeInserted(prev.size, newRows.size - prev.size)
+        } else if (newRows.size < prev.size) {
+            notifyItemRangeRemoved(newRows.size, prev.size - newRows.size)
+        }
+        if (!changed && newRows.size == prev.size && newRows != prev) {
+            notifyDataSetChanged()
+        }
     }
 
     fun add(row: ChatRow) {
@@ -166,7 +193,7 @@ class ChatAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
                 return
             }
             bubble.visibility = View.VISIBLE
-            bubble.text = if (row.streaming && row.text.isEmpty()) "…" else row.text
+            bubble.setText(row.text.toStyledText(), TextView.BufferType.SPANNABLE)
 
             if (row.reasoning.isEmpty()) {
                 reasoning.visibility = View.GONE
@@ -176,6 +203,13 @@ class ChatAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
                 reasoning.text = if (trace.length > 400) "… " + trace.takeLast(400) else trace
             }
         }
+
+        /**
+         * Renders Markdown, dropping straight back to the raw text while the
+         * stream is still open so a half-written `**bold` never flickers.
+         */
+        private fun String.toStyledText(): CharSequence =
+            if (this == "…") this else MarkdownStyler.render(this, itemView.context)
     }
 
     class ToolHolder(view: View) : RecyclerView.ViewHolder(view) {

@@ -36,13 +36,12 @@ class ToolDetailActivity : AppCompatActivity() {
         }
         emptyView = findViewById(R.id.emptyView)
 
-        val repo = ChatRepository(applicationContext)
+        val repo = ChatRepository.get(applicationContext)
         lifecycleScope.launch {
             repo.refreshServers()
             val tools = repo.tools.value
             adapter.submit(tools, repo)
             emptyView.visibility = if (tools.isEmpty()) View.VISIBLE else View.GONE
-            repo.close()
         }
     }
 }

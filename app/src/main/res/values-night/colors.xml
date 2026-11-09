@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="bubble_user">#FF2F3A44</color>
+    <color name="bubble_user_text">#FFECECEC</color>
+    <color name="bubble_ai">#FF232323</color>
+    <color name="bubble_ai_text">#FFECECEC</color>
+
+    <color name="tool_card_bg">#FF252525</color>
+    <color name="tool_accent">#FFFF7B7B</color>
+    <color name="tool_ok">#FF4DB6AC</color>
+    <color name="divider">#1FFFFFFF</color>
+</resources>

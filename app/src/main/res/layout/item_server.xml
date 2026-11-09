@@ -8,7 +8,8 @@
     android:layout_marginTop="6dp"
     android:layout_marginEnd="12dp"
     android:layout_marginBottom="6dp"
-    app:cardCornerRadius="14dp"
+    app:cardBackgroundColor="?attr/colorSurfaceContainerLow"
+    app:cardCornerRadius="16dp"
     app:cardElevation="0dp"
     app:strokeColor="@color/divider"
     app:strokeWidth="1dp">
@@ -30,7 +31,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:textAppearance="@style/TextAppearance.McpAiChat.ToolName"
+                android:textAppearance="@style/TextAppearance.McpAiChat.ItemTitle"
                 tools:text="Tools server" />
 
             <com.google.android.material.materialswitch.MaterialSwitch
@@ -44,13 +45,15 @@
                 android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
                 android:background="@drawable/badge_trusted"
-                android:paddingStart="6dp"
-                android:paddingTop="2dp"
-                android:paddingEnd="6dp"
-                android:paddingBottom="2dp"
+                android:drawablePadding="4dp"
+                android:drawableStart="@drawable/ic_verified"
+                android:paddingStart="8dp"
+                android:paddingTop="3dp"
+                android:paddingEnd="8dp"
+                android:paddingBottom="3dp"
                 android:text="@string/badge_trusted"
-                android:textAppearance="@style/TextAppearance.McpAiChat.Meta"
-                android:textColor="@color/tool_accent"
+                android:textAppearance="@style/TextAppearance.McpAiChat.LabelSmall"
+                android:textColor="@color/bubble_user_text"
                 android:visibility="gone"
                 tools:visibility="visible" />
         </LinearLayout>
@@ -59,18 +62,19 @@
             android:id="@+id/serverUrl"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
+            android:layout_marginTop="3dp"
             android:ellipsize="middle"
             android:singleLine="true"
-            android:textAppearance="@style/TextAppearance.McpAiChat.Meta"
+            android:textAppearance="@style/TextAppearance.McpAiChat.ItemMeta"
             tools:text="http://10.0.2.2:8080/mcp" />
 
         <TextView
             android:id="@+id/serverStatus"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:textAppearance="@style/TextAppearance.McpAiChat.Meta"
+            android:layout_marginTop="8dp"
+            android:textAppearance="@style/TextAppearance.McpAiChat.LabelMedium"
             tools:text="Connected · 12 tools" />
+
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>

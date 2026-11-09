@@ -3,13 +3,14 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+    <!-- Chat bubble, centred in the 66dp adaptive-icon safe zone. -->
     <path
         android:fillColor="#7BFFF0"
-        android:pathData="M36,34 L72,34 A6,6 0 0 1 78,40 L78,62 A6,6 0 0 1 72,68 L54,68 L42,78 L42,68 L36,68 A6,6 0 0 1 30,62 L30,40 A6,6 0 0 1 36,34 Z" />
+        android:pathData="M54,26L74.5,26A8,8 0 0,1 82.5,34L82.5,60A8,8 0 0,1 74.5,68L61,68L48,80L48,68L33.5,68A8,8 0 0,1 25.5,60L25.5,34A8,8 0 0,1 33.5,26z" />
     <path
         android:fillColor="#23313D"
-        android:pathData="M44,46 L64,46 L64,50 L44,50 Z" />
+        android:pathData="M40,38L68,38A4,4 0 0,1 72,42L72,42A4,4 0 0,1 68,46L40,46A4,4 0 0,1 36,42L36,42A4,4 0 0,1 40,38z" />
     <path
         android:fillColor="#23313D"
-        android:pathData="M44,54 L58,54 L58,58 L44,58 Z" />
+        android:pathData="M40,52L58,52A4,4 0 0,1 62,56L62,56A4,4 0 0,1 58,60L40,60A4,4 0 0,1 36,56L36,56A4,4 0 0,1 40,52z" />
 </vector>

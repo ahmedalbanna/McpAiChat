@@ -55,6 +55,8 @@
     <string name="empty_conversation">Send a message to start the conversation.</string>
     <string name="empty_conversations">No conversations yet. Start a new chat.</string>
     <string name="no_tools_connected">no tools connected</string>
+    <string name="no_servers_enabled">no MCP server enabled</string>
+    <string name="connecting_servers">connecting to MCP servers…</string>
     <string name="empty_servers">No MCP servers yet.\nAdd one to give the model tools.</string>
     <string name="empty_tools">This server exposed no tools.</string>
 

@@ -1,15 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="?attr/colorSurface">
+    android:background="?attr/colorSurface"
+    android:fillViewport="true">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="20dp">
+        android:paddingStart="20dp"
+        android:paddingTop="16dp"
+        android:paddingEnd="20dp"
+        android:paddingBottom="28dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingBottom="10dp"
+            android:text="Server"
+            android:textAppearance="@style/TextAppearance.McpAiChat.SectionHeader" />
 
         <com.google.android.material.textfield.TextInputLayout
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
@@ -38,11 +50,18 @@
                 android:inputType="textUri" />
         </com.google.android.material.textfield.TextInputLayout>
 
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:paddingBottom="10dp"
+            android:text="Authentication"
+            android:textAppearance="@style/TextAppearance.McpAiChat.SectionHeader" />
+
         <com.google.android.material.textfield.TextInputLayout
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
             android:hint="@string/label_auth_header_name">
 
             <com.google.android.material.textfield.TextInputEditText
@@ -66,11 +85,18 @@
                 android:inputType="textPassword" />
         </com.google.android.material.textfield.TextInputLayout>
 
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:paddingBottom="10dp"
+            android:text="Advanced"
+            android:textAppearance="@style/TextAppearance.McpAiChat.SectionHeader" />
+
         <com.google.android.material.textfield.TextInputLayout
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
             android:hint="@string/label_timeout_seconds">
 
             <com.google.android.material.textfield.TextInputEditText
@@ -84,22 +110,26 @@
             android:id="@+id/trustedSwitch"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
             android:layout_marginTop="16dp"
             android:text="@string/label_trusted_domain" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/testButton"
+            style="@style/Widget.Material3.Button.TonalButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="@string/action_test" />
+            android:layout_marginTop="24dp"
+            android:text="@string/action_test"
+            app:icon="@drawable/ic_refresh" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/saveButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="@string/action_save" />
+            android:text="@string/action_save"
+            app:icon="@drawable/ic_check" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/deleteButton"
@@ -108,7 +138,9 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
             android:text="@string/action_delete"
-            android:textColor="@color/tool_accent" />
+            android:textColor="@color/tool_accent"
+            app:icon="@drawable/ic_delete"
+            app:iconTint="@color/tool_accent" />
 
     </LinearLayout>
 </ScrollView>

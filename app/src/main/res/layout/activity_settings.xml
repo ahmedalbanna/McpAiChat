@@ -11,7 +11,17 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="20dp">
+        android:paddingStart="20dp"
+        android:paddingTop="16dp"
+        android:paddingEnd="20dp"
+        android:paddingBottom="28dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingBottom="10dp"
+            android:text="Provider"
+            android:textAppearance="@style/TextAppearance.McpAiChat.SectionHeader" />
 
         <com.google.android.material.textfield.TextInputLayout
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
@@ -55,11 +65,27 @@
                 tools:ignore="LabelFor" />
         </com.google.android.material.textfield.TextInputLayout>
 
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/refreshModelsButton"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="@string/action_refresh_models"
+            app:icon="@drawable/ic_refresh" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:paddingBottom="10dp"
+            android:text="Conversation"
+            android:textAppearance="@style/TextAppearance.McpAiChat.SectionHeader" />
+
         <com.google.android.material.textfield.TextInputLayout
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
             android:hint="@string/label_system_prompt">
 
             <com.google.android.material.textfield.TextInputEditText
@@ -71,20 +97,12 @@
                 android:minLines="3" />
         </com.google.android.material.textfield.TextInputLayout>
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/refreshModelsButton"
-            style="@style/Widget.Material3.Button.TextButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:text="@string/action_refresh_models" />
-
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
             android:text="@string/label_temperature"
-            android:textAppearance="@style/TextAppearance.McpAiChat.Meta" />
+            android:textAppearance="@style/TextAppearance.McpAiChat.LabelMedium" />
 
         <com.google.android.material.slider.Slider
             android:id="@+id/temperatureSlider"
@@ -94,6 +112,14 @@
             android:value="0.7"
             android:valueFrom="0.0"
             android:valueTo="2.0" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:paddingBottom="4dp"
+            android:text="Tools"
+            android:textAppearance="@style/TextAppearance.McpAiChat.SectionHeader" />
 
         <com.google.android.material.materialswitch.MaterialSwitch
             android:id="@+id/toolsSwitch"
@@ -115,14 +141,14 @@
             android:layout_marginStart="8dp"
             android:layout_marginTop="4dp"
             android:text="@string/label_confirm_tools_hint"
-            android:textAppearance="@style/TextAppearance.McpAiChat.Meta" />
+            android:textAppearance="@style/TextAppearance.McpAiChat.ItemMeta" />
 
         <TextView
             android:id="@+id/historyLabel"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            android:textAppearance="@style/TextAppearance.McpAiChat.Meta" />
+            android:textAppearance="@style/TextAppearance.McpAiChat.LabelMedium" />
 
         <com.google.android.material.slider.Slider
             android:id="@+id/historySlider"
@@ -139,14 +165,15 @@
             android:layout_marginStart="8dp"
             android:layout_marginTop="4dp"
             android:text="@string/label_history_hint"
-            android:textAppearance="@style/TextAppearance.McpAiChat.Meta" />
+            android:textAppearance="@style/TextAppearance.McpAiChat.ItemMeta" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/saveButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
-            android:text="@string/action_save" />
+            android:layout_marginTop="28dp"
+            android:text="@string/action_save"
+            app:icon="@drawable/ic_check" />
 
     </LinearLayout>
 </ScrollView>

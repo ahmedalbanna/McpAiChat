@@ -8,7 +8,8 @@
     android:layout_marginTop="6dp"
     android:layout_marginEnd="12dp"
     android:layout_marginBottom="6dp"
-    app:cardCornerRadius="14dp"
+    app:cardBackgroundColor="?attr/colorSurfaceContainerLow"
+    app:cardCornerRadius="16dp"
     app:cardElevation="0dp"
     app:strokeColor="@color/divider"
     app:strokeWidth="1dp">
@@ -23,35 +24,40 @@
             android:id="@+id/catalogName"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textAppearance="@style/TextAppearance.McpAiChat.ToolName"
+            android:textAppearance="@style/TextAppearance.McpAiChat.ItemTitle"
             tools:text="DeepWiki" />
 
         <TextView
             android:id="@+id/catalogSummary"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
-            android:textAppearance="@style/TextAppearance.Material3.BodySmall"
+            android:layout_marginTop="3dp"
+            android:textAppearance="@style/TextAppearance.McpAiChat.ItemMeta"
+            android:textColor="?android:attr/textColorSecondary"
             tools:text="Ask questions about any public GitHub repository." />
 
         <TextView
             android:id="@+id/catalogUrl"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
+            android:layout_marginTop="6dp"
             android:ellipsize="middle"
             android:singleLine="true"
-            android:textAppearance="@style/TextAppearance.McpAiChat.Meta"
+            android:textAppearance="@style/TextAppearance.McpAiChat.LabelMedium"
+            android:textColor="?android:attr/textColorSecondary"
             tools:text="https://mcp.deepwiki.com/mcp" />
 
         <TextView
             android:id="@+id/catalogTools"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
+            android:layout_marginTop="6dp"
             android:ellipsize="end"
             android:maxLines="2"
+            android:background="@drawable/code_block"
+            android:padding="8dp"
             android:textAppearance="@style/TextAppearance.McpAiChat.Code"
+            android:textColor="?android:attr/textColorSecondary"
             tools:text="ask_wiki_question, read_wiki_contents, read_wiki_structure" />
 
         <com.google.android.material.button.MaterialButton
@@ -59,7 +65,9 @@
             style="@style/Widget.Material3.Button.TextButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
-            android:text="@string/action_add_server" />
+            android:layout_marginTop="4dp"
+            android:text="@string/action_add_server"
+            app:icon="@drawable/ic_plus" />
+
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>

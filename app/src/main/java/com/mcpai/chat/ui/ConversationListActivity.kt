@@ -16,6 +16,7 @@ import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.mcpai.chat.R
 import com.mcpai.chat.data.ChatDatabase
 import com.mcpai.chat.data.ChatRepository
+import com.mcpai.chat.util.Markdown
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -29,15 +30,16 @@ import java.util.Locale
 class ConversationListActivity : AppCompatActivity() {
 
     private lateinit var repo: ChatRepository
+    private lateinit var adapter: ConversationAdapter
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_conversation_list)
-        repo = ChatRepository(applicationContext)
+        repo = ChatRepository.get(applicationContext)
 
         findViewById<MaterialToolbar>(R.id.toolbar).setNavigationOnClickListener { /* no-op */ }
 
-        val adapter = ConversationAdapter { id ->
+        adapter = ConversationAdapter { id ->
             // Switch to the selected conversation in MainActivity.
             val intent = Intent(this, MainActivity::class.java).apply {
                 putExtra("conversation_id", id)
@@ -58,10 +60,13 @@ class ConversationListActivity : AppCompatActivity() {
             }
             startActivity(intent)
         }
+    }
 
-        lifecycleScope.launch {
-            reload(adapter)
-        }
+    override fun onResume() {
+        super.onResume()
+        // Reload every time this screen comes back into focus: a conversation
+        // created in MainActivity is not visible until then.
+        lifecycleScope.launch { reload(adapter) }
     }
 
     private fun reload(adapter: ConversationAdapter) {
@@ -96,7 +101,10 @@ class ConversationListActivity : AppCompatActivity() {
         override fun onBindViewHolder(holder: Holder, position: Int) {
             val item = items[position]
             holder.title.text = item.title.takeIf { it.isNotBlank() } ?: "New conversation"
-            holder.preview.text = item.lastMessage?.takeIf { it.isNotBlank() } ?: "—"
+            holder.preview.text = item.lastMessage
+                ?.takeIf { it.isNotBlank() }
+                ?.let { Markdown.plain(it).take(140) }
+                ?: "—"
             holder.updated.text = formatTime(item.updatedAt)
             holder.itemView.setOnClickListener { onClick(item.id) }
         }

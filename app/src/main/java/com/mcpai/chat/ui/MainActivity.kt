@@ -1,6 +1,5 @@
 package com.mcpai.chat.ui
 
-import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -17,10 +16,12 @@ import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
+import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.appbar.MaterialToolbar
@@ -33,7 +34,8 @@ import com.mcpai.chat.data.Settings
 import com.mcpai.chat.data.StoredMessage
 import com.mcpai.chat.util.ChatError
 import com.mcpai.chat.util.ErrorClassifier
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
 /**
@@ -44,7 +46,8 @@ import kotlinx.coroutines.launch
  */
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var repo: ChatRepository
+    private val viewModel by viewModels<ChatViewModel>()
+    private val repo: ChatRepository get() = viewModel.repo
     private lateinit var adapter: ChatAdapter
     private lateinit var list: RecyclerView
     private lateinit var input: EditText
@@ -53,8 +56,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var sendButton: MaterialButton
     private lateinit var statusBanner: TextView
     private lateinit var emptyView: TextView
-
-    private var turnJob: Job? = null
 
     /** URI of the file the user has attached to the next message. */
     private var selectedAttachmentUri: Uri? = null
@@ -90,13 +91,8 @@ class MainActivity : AppCompatActivity() {
 
         setContentView(R.layout.activity_main)
 
-        repo = ChatRepository(applicationContext)
-
         // Open a specific conversation if one was passed via intent extras.
         val intentConversationId = intent.getLongExtra("conversation_id", -1L)
-        if (intentConversationId > 0) {
-            repo.setConversationId(intentConversationId)
-        }
 
         val toolbar = findViewById<MaterialToolbar>(R.id.toolbar)
         toolbar.setOnMenuItemClickListener { item ->
@@ -110,11 +106,11 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 R.id.action_new_chat -> {
-                    repo.newConversation(); reload(); true
+                    viewModel.newConversation(); true
                 }
 
                 R.id.action_clear_chat -> {
-                    repo.clearConversation(); reload(); true
+                    viewModel.clearConversation(); true
                 }
 
                 R.id.action_share_conversation -> {
@@ -156,25 +152,73 @@ class MainActivity : AppCompatActivity() {
 
         applyDebugConfigFromIntent()
 
-        lifecycleScope.launch {
-            if (intentConversationId > 0) {
-                // conversation_id was set via setConversationId above; just load it.
-                reload()
-            } else {
-                repo.openConversation()
-                reload()
+        // The view-model owns openConversation() and the history load, so a
+        // rotation does not re-open and the rows it already has stay put.
+        viewModel.loadConversation(intentConversationId)
+
+        // Warm the MCP tool catalogue in the background so the first message
+        // does not pay for the handshake. Servers that are already connected
+        // are reused, so revisiting this screen costs nothing.
+        runCatching {
+            if (repo.settings.servers().any { it.enabled }) {
+                lifecycleScope.launch { repo.refreshServers() }
             }
-            // MCP servers connect lazily on first message (T-06), not at startup.
         }
-        // Show how many MCP tools are live, so a silent model is easy to diagnose.
+
         lifecycleScope.launch {
-            repo.tools.collect { tools ->
-                val toolbar = findViewById<MaterialToolbar>(R.id.toolbar)
-                toolbar.subtitle = if (tools.isEmpty()) {
-                    getString(R.string.no_tools_connected)
-                } else {
-                    resources.getQuantityString(R.plurals.tools_connected, tools.size, tools.size)
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.rows.collectLatest { rows ->
+                    adapter.submit(rows)
+                    emptyView.visibility = if (rows.isEmpty()) View.VISIBLE else View.GONE
+                    if (rows.isNotEmpty()) list.scrollToPosition(rows.size - 1)
                 }
+            }
+        }
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.status.collect { message ->
+                    if (message == null) {
+                        statusBanner.visibility = View.GONE
+                    } else {
+                        statusBanner.text = message
+                        statusBanner.visibility = View.VISIBLE
+                    }
+                }
+            }
+        }
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.approval.collect { request ->
+                    if (request != null) askToolApproval(request)
+                }
+            }
+        }
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.sending.collect { sending -> sendButton.isEnabled = !sending }
+            }
+        }
+
+        // Show how many MCP tools are live, so a silent model is easy to diagnose.
+        // Both flows are watched: a server exposing no tools never changes the
+        // tool list, so watching tools alone could not tell "still connecting"
+        // from "connected but empty".
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                combine(repo.tools, repo.serverProbes) { tools, probes -> tools to probes }
+                    .collect { (tools, probes) ->
+                        val toolbar = findViewById<MaterialToolbar>(R.id.toolbar)
+                        toolbar.subtitle = when {
+                            repo.settings.servers().none { it.enabled } ->
+                                getString(R.string.no_servers_enabled)
+
+                            tools.isNotEmpty() ->
+                                resources.getQuantityString(R.plurals.tools_connected, tools.size, tools.size)
+
+                            probes.isNotEmpty() -> getString(R.string.no_tools_connected)
+                            else -> getString(R.string.connecting_servers)
+                        }
+                    }
             }
         }
     }
@@ -211,103 +255,17 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun reload() {
-        lifecycleScope.launch {
-            val rows = repo.loadHistory().map { it.toRow() }
-            adapter.submit(rows)
-            emptyView.visibility = if (rows.isEmpty()) View.VISIBLE else View.GONE
-            if (rows.isNotEmpty()) list.scrollToPosition(rows.size - 1)
-        }
-    }
-
-    private fun StoredMessage.toRow(): ChatRow = when (role) {
-        StoredMessage.ROLE_USER -> ChatRow.User(
-            id = id,
-            text = content,
-            attachmentPath = attachmentPath,
-            attachmentName = attachmentName,
-        )
-        StoredMessage.ROLE_TOOL -> ChatRow.Tool(
-            id = id,
-            name = toolName.orEmpty(),
-            args = toolArgs.orEmpty(),
-            result = toolResult,
-            isError = toolError,
-            running = status == StoredMessage.STATUS_PENDING,
-            declined = status == StoredMessage.STATUS_DECLINED,
-        )
-
-        else -> ChatRow.Assistant(
-            id = id,
-            text = content,
-            streaming = status == StoredMessage.STATUS_STREAMING,
-            reasoning = reasoning.orEmpty(),
-        )
-    }
-
     private fun send() {
         val text = input.text?.toString()?.trim().orEmpty()
         if (text.isEmpty()) return
-        if (turnJob?.isActive == true) return
-
         input.setText("")
         emptyView.visibility = View.GONE
-        sendButton.isEnabled = false
 
         val attachmentPath = selectedAttachmentUri?.toString()
         val attachmentName = selectedAttachmentUri?.lastPathSegment
         selectedAttachmentUri = null
 
-        turnJob = lifecycleScope.launch {
-            repo.send(text, attachmentPath, attachmentName).collect { event ->
-                when (event) {
-                    is ChatEvent.UserMessage -> {
-                        adapter.add(ChatRow.User(event.id, event.text))
-                        list.scrollToPosition(adapter.itemCount - 1)
-                    }
-
-                    is ChatEvent.AssistantStarted -> {
-                        adapter.add(ChatRow.Assistant(event.id, "", true))
-                    }
-
-                    is ChatEvent.AssistantDelta -> {
-                        adapter.appendAssistantText(event.id, event.delta)
-                        list.scrollToPosition(adapter.itemCount - 1)
-                    }
-
-                    is ChatEvent.ReasoningDelta -> {
-                        adapter.appendReasoning(event.id, event.delta)
-                    }
-
-                    is ChatEvent.AssistantDone -> {
-                        adapter.markAssistantFinished(event.id)
-                    }
-
-                    is ChatEvent.ToolStarted -> {
-                        adapter.add(ChatRow.Tool(event.id, event.name, event.args, null, false, true))
-                        list.scrollToPosition(adapter.itemCount - 1)
-                    }
-
-                    is ChatEvent.ToolFinished -> {
-                        adapter.completeTool(event.id, event.result, event.isError, event.declined)
-                    }
-
-                    is ChatEvent.ToolApprovalRequested -> askToolApproval(event)
-
-                    is ChatEvent.Status -> {
-                        statusBanner.text = event.message
-                        statusBanner.visibility = View.VISIBLE
-                    }
-
-                    is ChatEvent.Error -> {
-                        statusBanner.text = event.message
-                        statusBanner.visibility = View.VISIBLE
-                    }
-                }
-            }
-            statusBanner.visibility = View.GONE
-            sendButton.isEnabled = true
-        }
+        viewModel.send(text, attachmentPath, attachmentName)
     }
 
     /** The one active approval dialog, so a second request cannot stack on top. */
@@ -353,18 +311,14 @@ class MainActivity : AppCompatActivity() {
             .setView(container)
             .setCancelable(false)
             .setPositiveButton(R.string.tool_approval_allow) { _, _ ->
-                repo.approveToolCall(
-                    approved = true,
-                    trustServer = trustBox.isChecked,
-                    autoApproveTool = autoApproveBox.isChecked,
-                )
+                viewModel.approve(request, approved = true, trust = trustBox.isChecked, autoApprove = autoApproveBox.isChecked)
             }
             .setNegativeButton(R.string.tool_approval_deny) { _, _ ->
-                repo.approveToolCall(approved = false, trustServer = false, autoApproveTool = false)
+                viewModel.approve(request, approved = false, trust = false, autoApprove = false)
             }
             .setOnCancelListener {
                 // Dismissing the dialog is a denial, never an approval.
-                repo.approveToolCall(approved = false, trustServer = false, autoApproveTool = false)
+                viewModel.approve(request, approved = false, trust = false, autoApprove = false)
             }
             .create()
 
@@ -508,12 +462,24 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onPause() {
+        // Stop the microphone as soon as the user leaves the screen; a
+        // recognition session that outlives it keeps the recognizer alive and
+        // announces a banner the user cannot see.
+        speechRecognizer?.cancel()
+        super.onPause()
+    }
+
     override fun onDestroy() {
-        super.onDestroy()
+        approvalDialog?.dismiss()
+        approvalDialog = null
         speechRecognizer?.cancel()
         speechRecognizer = null
-        if (::repo.isInitialized) {
-            repo.close()
-        }
+        // The turn job lives in ChatViewModel, so it survives this activity
+        // being destroyed. The repository is owned by ChatApplication for the
+        // whole process; closing it here would close the database under the
+        // coroutine that is writing the partial answer, and would discard every
+        // MCP session.
+        super.onDestroy()
     }
 }
