@@ -11,6 +11,7 @@
     <string name="hint_message">Message…</string>
     <string name="action_send">Send</string>
     <string name="action_attach">Attach file</string>
+    <string name="action_remove_attachment">Remove attachment</string>
     <string name="action_voice_input">Voice input</string>
     <string name="action_servers">MCP servers</string>
     <string name="action_settings">AI provider</string>

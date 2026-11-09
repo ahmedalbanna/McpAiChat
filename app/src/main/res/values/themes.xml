@@ -131,4 +131,31 @@
         <item name="android:padding">10dp</item>
     </style>
 
+    <!--
+      Compact ChatGPT-style controls. The inner button stays around 40dp so the
+      composer stays visually quiet; each remains a Material icon button with a
+      visible ripple and accessible content description.
+    -->
+    <style name="Widget.McpAiChat.ComposerIconButton" parent="Widget.Material3.Button.IconButton">
+        <item name="backgroundTint">@color/composer_icon_bg</item>
+        <item name="iconTint">@color/composer_icon_fg</item>
+        <item name="iconSize">20dp</item>
+        <item name="cornerRadius">20dp</item>
+        <item name="android:insetLeft">0dp</item>
+        <item name="android:insetRight">0dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+    </style>
+
+    <style name="Widget.McpAiChat.ComposerSendButton" parent="Widget.Material3.Button.IconButton">
+        <item name="backgroundTint">@color/composer_send_background</item>
+        <item name="iconTint">@color/composer_send_foreground</item>
+        <item name="iconSize">20dp</item>
+        <item name="cornerRadius">20dp</item>
+        <item name="android:insetLeft">0dp</item>
+        <item name="android:insetRight">0dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+    </style>
+
 </resources>

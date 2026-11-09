@@ -16,4 +16,11 @@
     <color name="tool_accent">#FFA3404B</color>
     <color name="tool_ok">#FF018786</color>
     <color name="divider">#1A000000</color>
+
+    <color name="composer_icon_bg">#FFEFEEEA</color>
+    <color name="composer_icon_fg">#FF5B5B58</color>
+    <color name="composer_send_bg">#FF202123</color>
+    <color name="composer_send_fg">#FFFFFFFF</color>
+    <color name="composer_send_disabled_bg">#FFE8E8E6</color>
+    <color name="composer_send_disabled_fg">#FFA9A9A5</color>
 </resources>

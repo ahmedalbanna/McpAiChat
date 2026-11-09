@@ -7,6 +7,8 @@ import android.os.Bundle
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.widget.EditText
@@ -54,8 +56,13 @@ class MainActivity : AppCompatActivity() {
     private lateinit var attachButton: MaterialButton
     private lateinit var micButton: MaterialButton
     private lateinit var sendButton: MaterialButton
+    private lateinit var attachmentPreview: View
+    private lateinit var attachmentName: TextView
+    private lateinit var clearAttachmentButton: MaterialButton
     private lateinit var statusBanner: TextView
     private lateinit var emptyView: TextView
+    /** True while a turn is in flight; drives the send-button enabled state. */
+    private var sendingActive = false
 
     /** URI of the file the user has attached to the next message. */
     private var selectedAttachmentUri: Uri? = null
@@ -65,8 +72,7 @@ class MainActivity : AppCompatActivity() {
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             if (uri != null) {
                 selectedAttachmentUri = uri
-                val name = uri.lastPathSegment ?: uri.toString()
-                Toast.makeText(this, "Attached: $name", Toast.LENGTH_SHORT).show()
+                showAttachmentChip(uri)
             }
         }
 
@@ -130,11 +136,15 @@ class MainActivity : AppCompatActivity() {
         attachButton = findViewById(R.id.attachButton)
         micButton = findViewById(R.id.micButton)
         sendButton = findViewById(R.id.sendButton)
+        attachmentPreview = findViewById(R.id.attachmentPreview)
+        attachmentName = findViewById(R.id.attachmentName)
+        clearAttachmentButton = findViewById(R.id.clearAttachmentButton)
         statusBanner = findViewById(R.id.statusBanner)
         emptyView = findViewById(R.id.emptyView)
 
         sendButton.setOnClickListener { send() }
         attachButton.setOnClickListener { pickFileLauncher.launch(arrayOf("*/*")) }
+        clearAttachmentButton.setOnClickListener { clearSelectedAttachment() }
         micButton.setOnClickListener {
             if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
                 recordAudioLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
@@ -143,12 +153,18 @@ class MainActivity : AppCompatActivity() {
             }
         }
         input.setOnEditorActionListener { _, actionId, _ ->
-            if (actionId == EditorInfo.IME_ACTION_SEND) {
+            if (actionId == EditorInfo.IME_ACTION_SEND && canSendMessage()) {
                 send(); true
             } else {
                 false
             }
         }
+        input.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+            override fun afterTextChanged(s: Editable?) = updateSendButton()
+        })
+        updateSendButton()
 
         applyDebugConfigFromIntent()
 
@@ -195,7 +211,10 @@ class MainActivity : AppCompatActivity() {
         }
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.sending.collect { sending -> sendButton.isEnabled = !sending }
+                viewModel.sending.collect { sending ->
+                    sendingActive = sending
+                    updateSendButton()
+                }
             }
         }
 
@@ -255,17 +274,38 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun canSendMessage(): Boolean =
+        !sendingActive && !input.text.isNullOrBlank()
+
+    private fun updateSendButton() {
+        if (!::sendButton.isInitialized) return
+        sendButton.isEnabled = canSendMessage()
+    }
+
+    private fun showAttachmentChip(uri: Uri) {
+        val displayName = uri.lastPathSegment?.substringAfterLast('/')?.let(Uri::decode)
+        attachmentName.text = displayName?.takeUnless { it.isBlank() } ?: uri.toString()
+        attachmentPreview.visibility = View.VISIBLE
+        emptyView.visibility = View.GONE
+    }
+
+    private fun clearSelectedAttachment() {
+        selectedAttachmentUri = null
+        attachmentPreview.visibility = View.GONE
+        attachmentName.text = ""
+    }
+
     private fun send() {
         val text = input.text?.toString()?.trim().orEmpty()
-        if (text.isEmpty()) return
+        if (!canSendMessage() || text.isEmpty()) return
         input.setText("")
         emptyView.visibility = View.GONE
 
         val attachmentPath = selectedAttachmentUri?.toString()
-        val attachmentName = selectedAttachmentUri?.lastPathSegment
-        selectedAttachmentUri = null
+        val attachmentDisplayName = selectedAttachmentUri?.lastPathSegment?.let(Uri::decode)
+        clearSelectedAttachment()
 
-        viewModel.send(text, attachmentPath, attachmentName)
+        viewModel.send(text, attachmentPath, attachmentDisplayName)
     }
 
     /** The one active approval dialog, so a second request cannot stack on top. */

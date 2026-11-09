@@ -9,4 +9,11 @@
     <color name="tool_accent">#FFFF7B7B</color>
     <color name="tool_ok">#FF4DB6AC</color>
     <color name="divider">#1FFFFFFF</color>
+
+    <color name="composer_icon_bg">#FF2F2F2F</color>
+    <color name="composer_icon_fg">#FFB4B4B4</color>
+    <color name="composer_send_bg">#FFECECF1</color>
+    <color name="composer_send_fg">#FF202123</color>
+    <color name="composer_send_disabled_bg">#FF2F2F2F</color>
+    <color name="composer_send_disabled_fg">#FF626262</color>
 </resources>
