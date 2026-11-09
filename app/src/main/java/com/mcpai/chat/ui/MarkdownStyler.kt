@@ -14,10 +14,12 @@ import android.text.style.URLSpan
 import android.util.TypedValue
 import androidx.core.content.ContextCompat
 import com.google.android.material.R as MaterialR
+import com.mcpai.chat.util.MdAlignment
 import com.mcpai.chat.util.MdBlock
 import com.mcpai.chat.util.MdInline
 import com.mcpai.chat.util.MdSpan
 import com.mcpai.chat.util.Markdown
+import com.mcpai.chat.util.Markdown.inlineText
 
 /**
  * Turns parsed Markdown into an Android `Spanned`.
@@ -50,10 +52,111 @@ object MarkdownStyler {
                 is MdBlock.CodeBlock -> appendCode(block, out, colors)
                 is MdBlock.ListItem -> appendListItem(block, out, colors)
                 is MdBlock.Quote -> appendQuote(block, out, colors)
+                is MdBlock.Table -> appendTable(block, out, colors)
                 MdBlock.Rule -> out.append("─────────")
             }
         }
         return out
+    }
+
+    // ---- pipe tables -------------------------------------------------------
+
+    /**
+     * Renders a GFM table as an aligned monospace block.
+     *
+     * Each cell shows its plain text (emphasis inside cells is flattened), so
+     * column alignment stays exact. The header row is bold, the separating
+     * dash line is muted, and the whole block gets a subtle background, the
+     * same treatment as a fenced code block.
+     */
+    private fun appendTable(block: MdBlock.Table, out: SpannableStringBuilder, colors: Colors) {
+        val mono = TypefaceSpan("monospace")
+        val columns = block.headers.size
+        if (columns == 0) return
+
+        fun CellText(row: List<List<MdInline>>): List<String> =
+            row.map { inlineText(it) }
+
+        val headerText = CellText(block.headers)
+        val bodyText = block.rows.map(::CellText)
+
+        fun plainWidth(cell: String): Int = cell.length
+        val widths = (0 until columns).map { col ->
+            (listOf(headerText.getOrNull(col).orEmpty()) +
+                bodyText.map { it.getOrNull(col).orEmpty() })
+                .maxOf { plainWidth(it) }
+                .coerceAtLeast(3)
+        }
+
+        fun alignment(col: Int): MdAlignment =
+            block.alignments.getOrNull(col) ?: MdAlignment.NONE
+
+        fun align(cell: String, col: Int): String {
+            val w = widths[col]
+            return when (alignment(col)) {
+                MdAlignment.RIGHT -> cell.padStart(w)
+                MdAlignment.CENTER -> {
+                    val total = w - cell.length
+                    val left = total / 2
+                    " ".repeat(left) + cell.padEnd(w - left)
+                }
+
+                else -> cell.padEnd(w)
+            }
+        }
+
+        fun renderRow(row: List<List<MdInline>>, bold: Boolean) {
+            val cells = row.mapIndexed { i, cell -> align(inlineText(cell), i) }
+            val start = out.length
+            out.append(cells.joinToString(" | "))
+            val end = out.length
+            out.setSpan(mono, start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+            out.setSpan(
+                AbsoluteSizeSpan(colors.codeTextSizePx, true),
+                start,
+                end,
+                Spannable.SPAN_EXCLUSIVE_EXCLUSIVE,
+            )
+            if (bold) {
+                out.setSpan(StyleSpan(Typeface.BOLD), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+        }
+
+        // Header
+        val tableStart = out.length
+        renderRow(block.headers, bold = true)
+
+        // Separator line
+        val sepStart = out.length
+        out.append("\n")
+        out.append(widths.joinToString("-+-") { "-".repeat(it) })
+        out.setSpan(mono, sepStart, out.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        out.setSpan(
+            AbsoluteSizeSpan(colors.codeTextSizePx, true),
+            sepStart,
+            out.length,
+            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE,
+        )
+        out.setSpan(
+            ForegroundColorSpan(colors.meta),
+            sepStart,
+            out.length,
+            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE,
+        )
+
+        // Body rows
+        for (row in block.rows) {
+            out.append("\n")
+            renderRow(row, bold = false)
+        }
+
+        // The whole table gets a subtle background
+        out.setSpan(
+            BackgroundColorSpan(colors.codeBackground),
+            tableStart,
+            out.length,
+            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE,
+        )
     }
 
     // ---- block appenders ----------------------------------------------------
@@ -187,7 +290,9 @@ object MarkdownStyler {
         companion object {
             fun from(context: Context): Colors {
                 val resources = context.resources
-                val codeTextSizePx = (12 * resources.displayMetrics.scaledDensity + 0.5f).toInt()
+                // Code and tables are shown at 11sp — code reads better small,
+                // and tables keep more columns on one line inside a bubble.
+                val codeTextSizePx = (11 * resources.displayMetrics.scaledDensity + 0.5f).toInt()
                 return Colors(
                     primary = resolve(context, MaterialR.attr.colorPrimary, android.graphics.Color.GRAY),
                     meta = resolve(context, android.R.attr.textColorSecondary, android.graphics.Color.GRAY),
