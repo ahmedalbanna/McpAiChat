@@ -196,12 +196,12 @@
                 android:id="@+id/inputBar"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:gravity="center_vertical"
+                android:gravity="bottom"
                 android:orientation="horizontal"
                 android:paddingStart="8dp"
-                android:paddingTop="5dp"
+                android:paddingTop="6dp"
                 android:paddingEnd="5dp"
-                android:paddingBottom="5dp">
+                android:paddingBottom="6dp">
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/attachButton"
@@ -217,13 +217,20 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:background="@android:color/transparent"
+                    android:gravity="top|start"
                     android:hint="@string/hint_message"
                     android:imeOptions="actionSend"
                     android:inputType="textMultiLine|textCapSentences"
+                    android:hyphenationFrequency="none"
+                    android:lineSpacingMultiplier="1.15"
                     android:maxLines="5"
-                    android:minHeight="42dp"
+                    android:minHeight="46dp"
+                    android:overScrollMode="ifContentScrolls"
                     android:paddingStart="8dp"
+                    android:paddingTop="10dp"
                     android:paddingEnd="8dp"
+                    android:paddingBottom="10dp"
+                    android:scrollbars="vertical"
                     android:textAppearance="@style/TextAppearance.McpAiChat.BodyMedium" />
 
                 <com.google.android.material.button.MaterialButton
