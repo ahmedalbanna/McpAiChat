@@ -1,6 +1,6 @@
 # McpAiChat — project context
 
-**Updated:** 2026-10-31 · **State:** domain-agnostic MCP management shipped, verified on a real device, and covered by an automated device test
+**Updated:** 2026-11-09 · **State:** domain-agnostic MCP management shipped, verified on a real device, and covered by an automated device test
 
 The briefing: what this app is, why it is shaped this way, where it stands, and what is left. Companion documents:
 
@@ -22,22 +22,23 @@ Two constraints shaped every decision:
 
 ## What ships today
 
-| Capability                                                         | State                                                                          |
-| ------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
-| Any MCP server by URL + auth header, timeout, custom headers       | **Verified on device** — DeepWiki and Firecrawl connected, 6 tools listed      |
-| Manual approval per tool call, with the owning server named        | **Verified on device** — dialog shown, `Allow` executed the call               |
-| Persistent per-tool auto-approval, revocable                       | Implemented + unit tested; the toggle not exercised on device                  |
-| SPKI certificate pinning for user-trusted domains                  | Implemented + unit tested + **device tested** — the pin survives an edit       |
-| Lazy connect, one retry on failure                                 | **Verified on device** — tools appeared on the first message                   |
-| Per-type error dialogs (pin mismatch, server unavailable, unknown) | **Verified on device** for server-unavailable; the Re-trust path not exercised |
-| Active server remembered across launches                           | Implemented, not verified on device                                            |
-| Export / import of server settings as JSON, secrets excluded       | Implemented + unit tested; UI buttons not exercised on device                  |
-| Encrypted settings (AES-256-GCM, Android Keystore)                 | **Verified on device** — and by an instrumentation test that reads the file    |
-| Global LLM provider settings                                       | **Verified on device** — chat answered with the configured key                 |
-| Capped replay history (default 40, adjustable 4–120)               | Implemented + unit tested; the slider not exercised on device                  |
-| Catalogue of 33 keyless public MCP servers                         | **Verified on device** — entries connect and answer                            |
+| Capability                                                             | State                                                                                                                                          |
+| ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Any MCP server by URL + auth header, timeout, custom headers           | **Verified on device** — DeepWiki and Firecrawl connected, 6 tools listed                                                                      |
+| Manual approval per tool call, with the owning server named            | **Verified on device** — dialog shown (`ask_wiki_question` on DeepWiki), `Allow` executed the call                                             |
+| Markdown rendering in assistant bubbles and conversation-list previews | **Implemented + unit tested** — headings, bold/italic/code, lists, quotes, links; Arabic-aware line spacing; invariant: no source text is lost |
+| Persistent per-tool auto-approval, revocable                           | Implemented + unit tested; the toggle not exercised on device                                                                                  |
+| SPKI certificate pinning for user-trusted domains                      | Implemented + unit tested + **device tested** — the pin survives an edit                                                                       |
+| Lazy connect, one retry on failure                                     | **Superseded** by warm-on-open + session reuse; tools appear within ~2s of opening chat                                                        |
+| Per-type error dialogs (pin mismatch, server unavailable, unknown)     | **Verified on device** for server-unavailable; the Re-trust path not exercised                                                                 |
+| Active server remembered across launches                               | Implemented, not verified on device                                                                                                            |
+| Export / import of server settings as JSON, secrets excluded           | Implemented + unit tested; UI buttons not exercised on device                                                                                  |
+| Encrypted settings (AES-256-GCM, Android Keystore)                     | **Verified on device** — and by an instrumentation test that reads the file                                                                    |
+| Global LLM provider settings                                           | **Verified on device** — chat answered with the configured key                                                                                 |
+| Capped replay history (default 40, adjustable 4–120)                   | Implemented + unit tested; the slider not exercised on device                                                                                  |
+| Catalogue of 33 keyless public MCP servers                             | **Verified on device** — entries connect and answer                                                                                            |
 
-Test suite: **101 unit tests across 12 classes + 13 instrumentation tests on the device, 0 failures**. The pre-commit hook runs typecheck + unit tests on every commit; `gradle app:connectedDebugAndroidTest` runs the device tests.
+Test suite: **139 unit tests across 15 classes + 13 instrumentation tests on the device, 0 failures**. The pre-commit hook runs typecheck + unit tests on every commit; `gradle app:connectedDebugAndroidTest` runs the device tests.
 
 ## How it fits together
 
@@ -100,11 +101,24 @@ Settled during five review rounds and recorded in the glossary and the spec:
 | No automated device test                             | `app/src/androidTest` with 13 tests, run with `gradle app:connectedDebugAndroidTest`.                                                                                                                                                   |
 | `stdio` transport needed a local binary              | `tools/stdio_mcp_server.py` is the reference binary, and the transport is now covered by a test - which found two real defects (the child's stdin was closed after one message, and the transport waited for a reply to notifications). |
 
+## What was closed on 2026-11-09
+
+| Was                                                                                     | Now                                                                                                                                                                                                                       |
+| --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Settings/Server/Bubbles were plain unstyled Compose-free XML with Android default icons | A full M3 type scale (Arabic-aware line spacing), a 22-icon custom stroke set, dark-mode `values-night/` overrides, a composer card with inline send button, and section headers in the two largest screens.              |
+| Assistant answers showed raw `**bold**` and `###`                                       | `Markdown.kt` (zero Android imports, 29 tests) parses blocks + inline runs; `MarkdownStyler.kt` maps them to `Spannable` with theme colors, code blocks get monospace + background span, lists get markers, quotes a bar. |
+| MCP loading felt slow on the first message and every message                            | Parallel handshakes, session reuse across server-list re-entry, `isWarm` latch instead of tool-count check, handshake timeout capped at 12s. Tools are ready before the first message is sent.                            |
+| Turn could be killed by rotation / configuration change                                 | `ChatViewModel` owns the turn in `viewModelScope`; `repeatOnLifecycle` collectors; the approval dialog re-appears after rotation; the streaming adapter diffs instead of full `notifyDataSetChanged()`.                   |
+| Four copies of the repository (4× DB, 4× registry)                                      | One process-level `ChatApplication` owns `ChatRepository`; activities never call `close()`.                                                                                                                               |
+| Turn errors flashed and vanished                                                        | `ChatViewModel` keeps the last error on screen until the next send.                                                                                                                                                       |
+| UI unverified beyond the main chat path                                                 | Dark mode captured; approval dialog rendered and executed `ask_wiki_question` on DeepWiki; server list, conversation list, settings and tool-detail all render.                                                           |
+
 ## Open work
 
 - **The stdio transport is not reachable from the phone UI.** The app configures every server by URL, so `StdioMcpTransport` is exercised by the test harness and by desktop reuse only. On a phone it would also need a binary built for the device's ABI. Putting it in the app means a transport field in the server config and a command field in the edit screen - a spec change, not a patch.
 - **The catalogue is a snapshot from 2026-10-29.** The public endpoints are third-party and can change or disappear; `python tools/verify_catalog.py` re-checks them.
 - **Paths not exercised by hand on the device:** the per-tool auto-approve toggle, the export/import buttons, the active-server restore and the Re-trust flow.
+- **Push:** no remote is configured for this repository; commits `4548b25` and `900200b` are local until you add one.
 
 ## How work moves here
 
