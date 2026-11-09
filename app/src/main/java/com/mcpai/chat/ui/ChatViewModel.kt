@@ -68,8 +68,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun send(text: String, attachmentPath: String?, attachmentName: String?) {
         if (text.isBlank() || turnJob?.isActive == true) return
+        // Start clean: the previous turn's error stays visible until this send.
+        _status.value = null
         _sending.value = true
         turnJob = viewModelScope.launch {
+            var lastError: String? = null
             repo.send(text, attachmentPath, attachmentName).collect { event ->
                 when (event) {
                     is ChatEvent.UserMessage ->
@@ -117,10 +120,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     is ChatEvent.ToolApprovalRequested -> _approval.value = event
 
                     is ChatEvent.Status -> _status.value = event.message
-                    is ChatEvent.Error -> _status.value = event.message
+                    is ChatEvent.Error -> {
+                        lastError = event.message
+                        _status.value = event.message
+                    }
                 }
             }
-            _status.value = null
+            // Only transient progress clears at turn end. An error stays on
+            // screen until the next send, otherwise it flashes and vanishes.
+            if (lastError == null) _status.value = null
             _sending.value = false
         }
     }
