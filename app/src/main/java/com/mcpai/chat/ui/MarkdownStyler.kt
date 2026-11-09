@@ -64,51 +64,54 @@ object MarkdownStyler {
     /**
      * Renders a GFM table as an aligned monospace block.
      *
-     * Each cell shows its plain text (emphasis inside cells is flattened), so
-     * column alignment stays exact. The header row is bold, the separating
-     * dash line is muted, and the whole block gets a subtle background, the
-     * same treatment as a fenced code block.
+     * Cells keep the Markdown parsed for the table (emphasis, links and inline
+     * code), while column padding is based on plain cell lengths. The header
+     * row is bold, the separating dash line is muted, and the table gets a
+     * subtle background, like a code block.
      */
     private fun appendTable(block: MdBlock.Table, out: SpannableStringBuilder, colors: Colors) {
         val mono = TypefaceSpan("monospace")
         val columns = block.headers.size
         if (columns == 0) return
 
-        fun CellText(row: List<List<MdInline>>): List<String> =
-            row.map { inlineText(it) }
+        val headerText = block.headers.map { inlineText(it) }
+        val bodyText = block.rows.map { row -> row.map { inlineText(it) } }
 
-        val headerText = CellText(block.headers)
-        val bodyText = block.rows.map(::CellText)
-
-        fun plainWidth(cell: String): Int = cell.length
         val widths = (0 until columns).map { col ->
             (listOf(headerText.getOrNull(col).orEmpty()) +
                 bodyText.map { it.getOrNull(col).orEmpty() })
-                .maxOf { plainWidth(it) }
+                .maxOf { it.length }
                 .coerceAtLeast(3)
         }
 
-        fun alignment(col: Int): MdAlignment =
-            block.alignments.getOrNull(col) ?: MdAlignment.NONE
-
-        fun align(cell: String, col: Int): String {
-            val w = widths[col]
-            return when (alignment(col)) {
-                MdAlignment.RIGHT -> cell.padStart(w)
+        fun cellPadding(cell: List<MdInline>, col: Int): Pair<Int, Int> {
+            val plain = inlineText(cell).length
+            val width = widths[col]
+            val extra = (width - plain).coerceAtLeast(0)
+            return when (block.alignments.getOrNull(col) ?: MdAlignment.NONE) {
+                MdAlignment.RIGHT -> extra to 0
                 MdAlignment.CENTER -> {
-                    val total = w - cell.length
-                    val left = total / 2
-                    " ".repeat(left) + cell.padEnd(w - left)
+                    val left = extra / 2
+                    left to (extra - left)
                 }
 
-                else -> cell.padEnd(w)
+                else -> 0 to extra
             }
         }
 
+        fun appendCell(cell: List<MdInline>, col: Int) {
+            val (left, right) = cellPadding(cell, col)
+            out.append(" ".repeat(left))
+            appendRuns(cell, out, colors)
+            out.append(" ".repeat(right))
+        }
+
         fun renderRow(row: List<List<MdInline>>, bold: Boolean) {
-            val cells = row.mapIndexed { i, cell -> align(inlineText(cell), i) }
             val start = out.length
-            out.append(cells.joinToString(" | "))
+            row.forEachIndexed { index, cell ->
+                appendCell(cell, index)
+                if (index != columns - 1) out.append(" | ")
+            }
             val end = out.length
             out.setSpan(mono, start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
             out.setSpan(

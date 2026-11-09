@@ -151,6 +151,305 @@ class MarkdownTest {
     }
 
     @Test
+    fun `an unmatched backtick does not hide later pipes`() {
+        val blocks = Markdown.parse(
+            """
+            | a | b |
+            | - | - |
+            | `x | y |
+            """.trimIndent(),
+        )
+        val table = blocks.single() as MdBlock.Table
+        assertEquals(2, table.rows[0].size)
+        assertEquals("y", inline(table.rows[0][1]))
+    }
+
+    @Test
+    fun `code spans pair runs of the same size`() {
+        val blocks = Markdown.parse(
+            """
+            | a | b |
+            | - | - |
+            | ``code ` | hidden`` | ok |
+            """.trimIndent(),
+        )
+        val table = blocks.single() as MdBlock.Table
+        assertEquals(2, table.rows[0].size)
+        assertEquals("ok", inline(table.rows[0][1]))
+    }
+
+    @Test
+    fun `an unmatched double backtick does not hide later pipes`() {
+        val blocks = Markdown.parse(
+            """
+            | a | b |
+            | - | - |
+            | ``code ` | b |
+            """.trimIndent(),
+        )
+        val table = blocks.single() as MdBlock.Table
+        assertEquals(2, table.rows[0].size)
+        assertEquals("b", inline(table.rows[0][1]))
+    }
+
+    @Test
+    fun `an escaped backtick does not hide pipes`() {
+        val blocks = Markdown.parse(
+            """
+            | a | b |
+            | - | - |
+            | \`x | y |
+            """.trimIndent(),
+        )
+        val table = blocks.single() as MdBlock.Table
+        assertEquals(2, table.rows[0].size)
+        assertEquals("y", inline(table.rows[0][1]))
+    }
+
+    @Test
+    fun `a code-span pipe does not split the cell`() {
+        val blocks = Markdown.parse(
+            """
+            | Cell | Note |
+            | ---- | ---- |
+            | `a | b` | ok |
+            """.trimIndent(),
+        )
+        val table = blocks.single() as MdBlock.Table
+        assertEquals(2, table.headers.size)
+        assertEquals(1, table.rows.size)
+        assertEquals("a | b", inline(table.rows[0][0]))
+        assertEquals("ok", inline(table.rows[0][1]))
+    }
+
+    @Test
+    fun `an escaped pipe keeps the cell together`() {
+        val blocks = Markdown.parse(
+            """
+            | Cell |
+            | ---- |
+            | a \| b |
+            """.trimIndent(),
+        )
+        val table = blocks.single() as MdBlock.Table
+        assertEquals("a | b", inline(table.rows[0][0]))
+    }
+
+    @Test
+    fun `a double backslash before a pipe is a delimiter`() {
+        val blocks = Markdown.parse(
+            """
+            | a | b |
+            | - | - |
+            | x\\|y z |
+            """.trimIndent(),
+        )
+        val table = blocks.single() as MdBlock.Table
+        assertEquals(2, table.rows[0].size)
+        assertEquals("x\\", inline(table.rows[0][0]))
+        assertEquals("y z", inline(table.rows[0][1]))
+    }
+
+    @Test
+    fun `an escaped backslash and escaped pipe stay one cell`() {
+        val blocks = Markdown.parse(
+            """
+            | a |
+            | - |
+            | x\\\|y |
+            """.trimIndent(),
+        )
+        val table = blocks.single() as MdBlock.Table
+        assertEquals(1, table.rows[0].size)
+        assertEquals("x\\|y", inline(table.rows[0][0]))
+    }
+
+    @Test
+    fun `a table may omit the outer pipes`() {
+        val blocks = Markdown.parse(
+            """
+            Name | Built
+            ---- | -----
+            A | MIT
+            """.trimIndent(),
+        )
+        val table = blocks.single() as MdBlock.Table
+        assertEquals("Name", inline(table.headers[0]))
+        assertEquals("MIT", inline(table.rows[0][1]))
+    }
+
+    @Test
+    fun `a separator with mixed dashes and colons is accepted`() {
+        val blocks = Markdown.parse(
+            """
+            | a | b | c | d | e |
+            | --- | :-- | :---: | ---: | :---|
+            """.trimIndent(),
+        )
+        val table = blocks.single() as MdBlock.Table
+        assertEquals(
+            listOf(MdAlignment.NONE, MdAlignment.LEFT, MdAlignment.CENTER, MdAlignment.RIGHT, MdAlignment.LEFT),
+            table.alignments,
+        )
+    }
+
+    @Test
+    fun `short and long body rows are normalised to the header`() {
+        val blocks = Markdown.parse(
+            """
+            | a | b |
+            | --- | --- |
+            | only |
+            | 1 | 2 | 3 |
+            """.trimIndent(),
+        )
+        val table = blocks.single() as MdBlock.Table
+        assertEquals(2, table.rows.size)
+        // A short row is padded with empty cells.
+        assertEquals(2, table.rows[0].size)
+        assertEquals(listOf("only", ""), table.rows[0].map { inline(it) })
+        // Extra cells beyond the header count are dropped.
+        assertEquals(listOf("1", "2"), table.rows[1].map { inline(it) })
+    }
+
+    @Test
+    fun `a table survives prose before and after`() {
+        val blocks = Markdown.parse(
+            """
+            Runway.
+
+            | a | b |
+            | - | - |
+            | 1 | 2 |
+
+            End noise.
+            """.trimIndent(),
+        )
+        assertEquals(3, blocks.size)
+        assertTrue(blocks[0] is MdBlock.Paragraph)
+        assertTrue(blocks[1] is MdBlock.Table)
+        assertTrue(blocks[2] is MdBlock.Paragraph)
+        assertEquals("End noise.", inline((blocks[2] as MdBlock.Paragraph).content))
+    }
+
+    @Test
+    fun `a single-column table parses`() {
+        val blocks = Markdown.parse(
+            """
+            | Only |
+            | ---- |
+            | one |
+            | two |
+            """.trimIndent(),
+        )
+        val table = blocks.single() as MdBlock.Table
+        assertEquals(1, table.headers.size)
+        assertEquals(listOf("one", "two"), table.rows.map { inline(it[0]) })
+    }
+
+    @Test
+    fun `a table is not confused with a horizontal rule`() {
+        val blocks = Markdown.parse("| a | b |\n| --- |\n| 1 |")
+        // Separator has one cell, header has two: no table.
+        assertTrue(blocks.any { it is MdBlock.Paragraph })
+    }
+
+    @Test
+    fun `a pipe table becomes rows with parsed cells`() {
+        val blocks = Markdown.parse(
+            """
+            | Name | Built |
+            | ---- | -----: |
+            | DeepWiki | MIT |
+            """.trimIndent(),
+        )
+        val table = blocks.single() as MdBlock.Table
+        assertEquals(2, table.headers.size)
+        assertEquals(1, table.rows.size)
+        assertEquals("Name", inline(table.headers[0]))
+        assertEquals("DeepWiki", inline(table.rows[0][0]))
+        assertEquals("MIT", inline(table.rows[0][1]))
+        assertEquals(MdAlignment.NONE, table.alignments[0])
+        assertEquals(MdAlignment.RIGHT, table.alignments[1])
+    }
+
+    @Test
+    fun `pipe rows without a separator stay prose`() {
+        // GFM: no separator means no table, so both rows are plain text - one
+        // paragraph, not two.
+        val blocks = Markdown.parse("| a | b |\n| c | d |")
+        assertEquals(1, blocks.size)
+        val paragraph = blocks.single() as MdBlock.Paragraph
+        assertEquals("| a | b |\n| c | d |", paragraph.content.joinToString("") { it.text })
+    }
+
+    @Test
+    fun `a table with a leading pipe on every line parses`() {
+        val blocks = Markdown.parse("| x |\n| - |\n| y |")
+        val table = blocks.single() as MdBlock.Table
+        assertEquals(listOf("y"), table.rows.map { row -> inline(row[0]) })
+    }
+
+    @Test
+    fun `alignment markers are read from the separator`() {
+        val blocks = Markdown.parse(
+            """
+            | a | b | c | d |
+            | :-- | :-: | --: | --- |
+            """.trimIndent(),
+        )
+        val table = blocks.single() as MdBlock.Table
+        assertEquals(
+            listOf(MdAlignment.LEFT, MdAlignment.CENTER, MdAlignment.RIGHT, MdAlignment.NONE),
+            table.alignments,
+        )
+    }
+
+    @Test
+    fun `emphasis inside a table cell keeps its span`() {
+        val blocks = Markdown.parse(
+            """
+            | What | Meaning |
+            | --- | --- |
+            | **bold** | plain |
+            """.trimIndent(),
+        )
+        val table = blocks.single() as MdBlock.Table
+        val first = table.rows[0][0]
+        assertEquals(setOf(MdSpan.BOLD), first.single().spans)
+        assertEquals("bold", first.single().text)
+    }
+
+    @Test
+    fun `a table in the middle of prose is one block`() {
+        val blocks = Markdown.parse(
+            """
+            Intro text.
+
+            | a | b |
+            | - | - |
+            | 1 | 2 |
+
+            Trailing text.
+            """.trimIndent(),
+        )
+        assertEquals(3, blocks.size)
+        assertTrue(blocks[0] is MdBlock.Paragraph)
+        assertTrue(blocks[1] is MdBlock.Table)
+        assertTrue(blocks[2] is MdBlock.Paragraph)
+    }
+
+    @Test
+    fun `plain strips a table into words`() {
+        val text = Markdown.plain("| Tool | Use |\n| --- | --- |\n| read_file | read |")
+        assertTrue(text.contains("Tool"))
+        assertTrue(text.contains("read_file"))
+        assertTrue(text.contains("read"))
+    }
+
+    private fun inline(runs: List<MdInline>): String = runs.joinToString("") { it.text }
+
+    @Test
     fun `links carry their url and no emphasis`() {
         val runs = Markdown.parseInline("see [the docs](https://example.com/x) now")
         assertNull(runs.first().link)
@@ -265,6 +564,8 @@ class MarkdownTest {
         is MdBlock.Paragraph -> block.content.joinToString("") { it.text }
         is MdBlock.ListItem -> block.content.joinToString("") { it.text }
         is MdBlock.Quote -> block.content.joinToString("") { it.text }
+        is MdBlock.Table -> (block.headers + block.rows.flatten())
+            .joinToString(" ") { row -> row.joinToString(" ") { c -> c.text } }
         is MdBlock.CodeBlock -> block.code
         MdBlock.Rule -> ""
     }
