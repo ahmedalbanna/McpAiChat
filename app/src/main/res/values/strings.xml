@@ -17,6 +17,25 @@
     <string name="title_settings">Settings</string>
     <string name="title_tools">Tools</string>
     <string name="title_free_servers">Free MCP servers</string>
+    <string name="catalog_toolbar_subtitle">Verified public endpoints</string>
+    <string name="catalog_intro_title">Connect verified servers</string>
+    <string name="catalog_intro_subtitle">Anonymous, public MCP endpoints ready to add. Requests go directly from your device.</string>
+    <string name="server_edit_subtitle">Add or edit MCP endpoint</string>
+    <string name="server_edit_intro_title">Bring your tools to chat</string>
+    <string name="server_edit_intro_subtitle">Connect a trusted MCP endpoint, authenticate if required, then choose how much it can do.</string>
+    <string name="connection_card_title">Connection</string>
+    <string name="connection_card_subtitle">Name and URL for the MCP endpoint</string>
+    <string name="authentication_card_subtitle">Optional header sent with every request</string>
+    <string name="advanced_card_title">Advanced</string>
+    <string name="advanced_card_subtitle">Timeout and certificate pinning for this server</string>
+    <string name="server_url_hint">HTTPS required; HTTP is allowed only for loopback.</string>
+    <string name="trusted_domain_hint">Pins the certificate on next successful connection so the domain cannot silently change.</string>
+    <string name="title_edit_server">Edit server</string>
+    <string name="action_manage_tools">View available tools</string>
+    <string name="tool_detail_intro_title">Available tools</string>
+    <string name="tool_detail_intro_subtitle">Auto-approve trusted actions, or keep manual approval for everything else.</string>
+    <string name="tool_detail_subtitle">MCP tools and approvals</string>
+    <string name="tool_auto_approve_hint">When enabled, this tool runs without asking</string>
     <string name="free_servers_intro">Public MCP servers that need no key. Every entry below was verified with a live initialize + tools/list handshake.</string>
     <string name="action_add_server">Add server</string>
 

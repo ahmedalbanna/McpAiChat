@@ -8,4 +8,12 @@
         <item quantity="one">%d conversation</item>
         <item quantity="other">%d conversations</item>
     </plurals>
+    <plurals name="catalog_server_count">
+        <item quantity="one">%d public server</item>
+        <item quantity="other">%d public servers</item>
+    </plurals>
+    <plurals name="tool_count">
+        <item quantity="one">%d tool available</item>
+        <item quantity="other">%d tools available</item>
+    </plurals>
 </resources>

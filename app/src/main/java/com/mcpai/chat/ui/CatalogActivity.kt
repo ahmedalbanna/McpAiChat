@@ -29,21 +29,28 @@ class CatalogActivity : AppCompatActivity() {
 
         findViewById<MaterialToolbar>(R.id.toolbar).setNavigationOnClickListener { finish() }
 
+        val catalogAdapter = CatalogAdapter { entry ->
+            // The result is handed back to the caller instead of writing the
+            // settings here: finishing during a click would leak the touch
+            // to the activity underneath and open the wrong screen.
+            setResult(
+                RESULT_OK,
+                Intent()
+                    .putExtra(EXTRA_URL, entry.url)
+                    .putExtra(EXTRA_NAME, entry.name),
+            )
+            finish()
+        }
         findViewById<RecyclerView>(R.id.catalogList).apply {
             layoutManager = LinearLayoutManager(this@CatalogActivity)
-            adapter = CatalogAdapter { entry ->
-                // The result is handed back to the caller instead of writing the
-                // settings here: finishing during a click would leak the touch
-                // to the activity underneath and open the wrong screen.
-                setResult(
-                    RESULT_OK,
-                    Intent()
-                        .putExtra(EXTRA_URL, entry.url)
-                        .putExtra(EXTRA_NAME, entry.name),
-                )
-                finish()
-            }
+            adapter = catalogAdapter
         }
+
+        findViewById<TextView>(R.id.catalogSummary).text = resources.getQuantityString(
+            R.plurals.catalog_server_count,
+            FreeMcpCatalog.entries.size,
+            FreeMcpCatalog.entries.size,
+        )
     }
 
     companion object {

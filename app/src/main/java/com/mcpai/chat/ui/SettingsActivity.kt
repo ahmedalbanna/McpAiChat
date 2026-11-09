@@ -1,5 +1,6 @@
 package com.mcpai.chat.ui
 
+import android.content.Intent
 import android.os.Bundle
 import android.widget.ArrayAdapter
 import android.widget.EditText
@@ -83,6 +84,10 @@ class SettingsActivity : AppCompatActivity() {
 
         findViewById<MaterialButton>(R.id.refreshModelsButton).setOnClickListener {
             loadModels(baseUrlField.text.toString(), apiKeyField.text.toString(), modelField)
+        }
+
+        findViewById<MaterialButton>(R.id.manageToolsButton).setOnClickListener {
+            startActivity(Intent(this, ToolDetailActivity::class.java))
         }
     }
 

@@ -7,6 +7,7 @@ import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.mcpai.chat.R
@@ -46,7 +47,11 @@ class ServerEditActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_server_edit)
         settings = Settings.get(applicationContext)
+        val toolbar = findViewById<MaterialToolbar>(R.id.serverEditToolbar)
+        toolbar.setNavigationOnClickListener { finish() }
 
+        existingId = intent.getStringExtra(EXTRA_ID)
+        if (existingId != null) toolbar.title = getString(R.string.title_edit_server)
         nameField = findViewById(R.id.nameField)
         urlField = findViewById(R.id.urlField)
         authHeaderNameField = findViewById(R.id.authHeaderNameField)
@@ -54,7 +59,6 @@ class ServerEditActivity : AppCompatActivity() {
         timeoutField = findViewById(R.id.timeoutField)
         trustedSwitch = findViewById(R.id.trustedSwitch)
 
-        existingId = intent.getStringExtra(EXTRA_ID)
         if (existingId != null) {
             settings.servers().firstOrNull { it.id == existingId }?.let { config ->
                 existingConfig = config

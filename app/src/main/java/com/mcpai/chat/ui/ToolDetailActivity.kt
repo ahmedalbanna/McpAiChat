@@ -22,6 +22,7 @@ class ToolDetailActivity : AppCompatActivity() {
 
     private lateinit var adapter: ToolAdapter
     private lateinit var emptyView: TextView
+    private lateinit var toolSummary: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -35,12 +36,19 @@ class ToolDetailActivity : AppCompatActivity() {
             adapter = this@ToolDetailActivity.adapter
         }
         emptyView = findViewById(R.id.emptyView)
+        toolSummary = findViewById(R.id.toolSummary)
 
         val repo = ChatRepository.get(applicationContext)
         lifecycleScope.launch {
             repo.refreshServers()
             val tools = repo.tools.value
             adapter.submit(tools, repo)
+            toolSummary.visibility = if (tools.isEmpty()) View.GONE else View.VISIBLE
+            toolSummary.text = resources.getQuantityString(
+                R.plurals.tool_count,
+                tools.size,
+                tools.size,
+            )
             emptyView.visibility = if (tools.isEmpty()) View.VISIBLE else View.GONE
         }
     }
@@ -68,6 +76,8 @@ class ToolAdapter : RecyclerView.Adapter<ToolAdapter.Holder>() {
     override fun onBindViewHolder(holder: Holder, position: Int) {
         val tool = tools[position]
         holder.name.text = tool.name
+        holder.server.text = tool.serverName.ifBlank { "MCP server" }
+        holder.server.visibility = if (tool.serverName.isBlank()) View.GONE else View.VISIBLE
         holder.description.text = tool.description
         holder.schema.text = tool.inputSchema?.toString(2) ?: "—"
 
@@ -87,6 +97,7 @@ class ToolAdapter : RecyclerView.Adapter<ToolAdapter.Holder>() {
 
     class Holder(view: View) : RecyclerView.ViewHolder(view) {
         val name: TextView = view.findViewById(R.id.toolName)
+        val server: TextView = view.findViewById(R.id.toolServer)
         val description: TextView = view.findViewById(R.id.toolDescription)
         val schema: TextView = view.findViewById(R.id.toolSchema)
         val autoApprove: MaterialSwitch = view.findViewById(R.id.autoApproveSwitch)
