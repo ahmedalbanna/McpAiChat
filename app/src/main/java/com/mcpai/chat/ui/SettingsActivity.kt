@@ -11,6 +11,7 @@ import com.google.android.material.button.MaterialButton
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.slider.Slider
 import com.google.android.material.textfield.MaterialAutoCompleteTextView
+import com.google.android.material.appbar.MaterialToolbar
 import com.mcpai.chat.R
 import com.mcpai.chat.data.Settings
 import com.mcpai.chat.llm.OpenAiProvider
@@ -32,6 +33,7 @@ class SettingsActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_settings)
         settings = Settings.get(applicationContext)
+        findViewById<MaterialToolbar>(R.id.settingsToolbar).setNavigationOnClickListener { finish() }
 
         val apiKeyField = findViewById<EditText>(R.id.apiKeyField)
         val baseUrlField = findViewById<EditText>(R.id.baseUrlField)

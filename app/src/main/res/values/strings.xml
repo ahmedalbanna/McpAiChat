@@ -20,6 +20,15 @@
     <string name="action_voice_input">Voice input</string>
     <string name="action_servers">MCP servers</string>
     <string name="action_settings">AI provider</string>
+    <string name="settings_toolbar_subtitle">Apply globally</string>
+    <string name="settings_intro_title">Make the model yours</string>
+    <string name="settings_intro_subtitle">One provider, prompt and approval policy across every conversation.</string>
+    <string name="provider_card_subtitle">OpenAI-compatible endpoint and model</string>
+    <string name="conversation_card_title">Conversation</string>
+    <string name="conversation_card_subtitle">How the assistant should behave</string>
+    <string name="tools_card_subtitle">Third-party actions stay gated by you</string>
+    <string name="memory_card_title">Context</string>
+    <string name="memory_card_subtitle">How much recent conversation reaches the model</string>
     <string name="action_new_server">Add server</string>
     <string name="action_export">Export</string>
     <string name="action_import">Import</string>
