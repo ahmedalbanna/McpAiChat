@@ -4,4 +4,8 @@
         <item quantity="one">%d tool</item>
         <item quantity="other">%d tools</item>
     </plurals>
+    <plurals name="conversation_count">
+        <item quantity="one">%d conversation</item>
+        <item quantity="other">%d conversations</item>
+    </plurals>
 </resources>

@@ -11,8 +11,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.google.android.material.appbar.MaterialToolbar
-import com.google.android.material.floatingactionbutton.FloatingActionButton
+import com.google.android.material.button.MaterialButton
 import com.mcpai.chat.R
 import com.mcpai.chat.data.ChatDatabase
 import com.mcpai.chat.data.ChatRepository
@@ -31,34 +30,24 @@ class ConversationListActivity : AppCompatActivity() {
 
     private lateinit var repo: ChatRepository
     private lateinit var adapter: ConversationAdapter
+    private lateinit var conversationSummary: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_conversation_list)
         repo = ChatRepository.get(applicationContext)
-
-        findViewById<MaterialToolbar>(R.id.toolbar).setNavigationOnClickListener { /* no-op */ }
+        conversationSummary = findViewById(R.id.conversationSummary)
 
         adapter = ConversationAdapter { id ->
-            // Switch to the selected conversation in MainActivity.
-            val intent = Intent(this, MainActivity::class.java).apply {
-                putExtra("conversation_id", id)
-                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
-            }
-            startActivity(intent)
+            openConversation(id)
         }
 
         val convList = findViewById<RecyclerView>(R.id.convList)
         convList.layoutManager = LinearLayoutManager(this@ConversationListActivity)
         convList.adapter = adapter
 
-        findViewById<FloatingActionButton>(R.id.fabNewChat).setOnClickListener {
-            val id = repo.newConversation()
-            val intent = Intent(this, MainActivity::class.java).apply {
-                putExtra("conversation_id", id)
-                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
-            }
-            startActivity(intent)
+        findViewById<MaterialButton>(R.id.newChatButton).setOnClickListener {
+            startNewConversation()
         }
     }
 
@@ -69,10 +58,26 @@ class ConversationListActivity : AppCompatActivity() {
         lifecycleScope.launch { reload(adapter) }
     }
 
+    private fun openConversation(id: Long) {
+        startActivity(
+            Intent(this, MainActivity::class.java).apply {
+                putExtra("conversation_id", id)
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
+            },
+        )
+    }
+
+    private fun startNewConversation() = openConversation(repo.newConversation())
+
     private fun reload(adapter: ConversationAdapter) {
         lifecycleScope.launch {
             val summaries = repo.allConversations()
             adapter.submit(summaries)
+            conversationSummary.text = resources.getQuantityString(
+                R.plurals.conversation_count,
+                summaries.size,
+                summaries.size,
+            )
             findViewById<TextView>(R.id.emptyView).visibility =
                 if (summaries.isEmpty()) View.VISIBLE else View.GONE
         }
@@ -100,11 +105,12 @@ class ConversationListActivity : AppCompatActivity() {
 
         override fun onBindViewHolder(holder: Holder, position: Int) {
             val item = items[position]
-            holder.title.text = item.title.takeIf { it.isNotBlank() } ?: "New conversation"
+            val context = holder.itemView.context
+            holder.title.text = item.title.takeIf { it.isNotBlank() } ?: context.getString(R.string.untitled_conversation)
             holder.preview.text = item.lastMessage
                 ?.takeIf { it.isNotBlank() }
                 ?.let { Markdown.plain(it).take(140) }
-                ?: "—"
+                ?: context.getString(R.string.no_message_preview)
             holder.updated.text = formatTime(item.updatedAt)
             holder.itemView.setOnClickListener { onClick(item.id) }
         }
@@ -118,6 +124,6 @@ class ConversationListActivity : AppCompatActivity() {
 }
 
 private fun formatTime(millis: Long): String {
-    val sdf = SimpleDateFormat("MMM d, HH:mm", Locale.getDefault())
+    val sdf = SimpleDateFormat("MMM d · HH:mm", Locale.getDefault())
     return sdf.format(java.util.Date(millis))
 }

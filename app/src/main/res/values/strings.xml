@@ -1,6 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">MCP AI Chat</string>
+    <string name="conversations_title">Chats</string>
+    <string name="conversations_toolbar_subtitle">Your private chat history</string>
+    <string name="conversations_intro_title">Pick up where you left off</string>
+    <string name="conversations_intro_subtitle">Every exchange stays on this device. Start a new chat or open a recent one.</string>
+    <string name="untitled_conversation">New conversation</string>
+    <string name="no_message_preview">No messages yet</string>
     <string name="title_servers">MCP servers</string>
     <string name="servers_toolbar_subtitle">Connect MCP tools</string>
     <string name="servers_intro_title">Connect your tools</string>
