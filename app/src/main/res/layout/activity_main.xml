@@ -88,6 +88,55 @@
             android:orientation="vertical">
 
             <com.google.android.material.card.MaterialCardView
+                android:id="@+id/voicePreview"
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:layout_marginStart="12dp"
+                android:layout_marginTop="8dp"
+                android:layout_marginEnd="12dp"
+                android:visibility="gone"
+                app:cardBackgroundColor="@color/composer_voice_container"
+                app:cardCornerRadius="16dp"
+                app:cardElevation="0dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="5dp">
+
+                    <ImageView
+                        android:layout_width="16dp"
+                        android:layout_height="16dp"
+                        android:contentDescription="@null"
+                        android:src="@drawable/ic_record"
+                        app:tint="@color/composer_voice_fg" />
+
+                    <TextView
+                        android:id="@+id/voiceTranscript"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:layout_weight="1"
+                        android:ellipsize="end"
+                        android:maxLines="1"
+                        android:text="@string/voice_speak_now"
+                        android:textAppearance="@style/TextAppearance.McpAiChat.BodySmall"
+                        android:textColor="@color/composer_voice_fg" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/voiceStopButton"
+                        style="@style/Widget.McpAiChat.ComposerVoiceButton"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:contentDescription="@string/action_stop_voice_input"
+                        app:icon="@drawable/ic_stop" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.card.MaterialCardView
                 android:id="@+id/attachmentPreview"
                 android:layout_width="match_parent"
                 android:layout_height="40dp"
@@ -108,11 +157,19 @@
                     android:paddingEnd="4dp">
 
                     <ImageView
+                        android:id="@+id/attachmentStateIcon"
                         android:layout_width="18dp"
                         android:layout_height="18dp"
                         android:contentDescription="@null"
                         android:src="@drawable/ic_attach"
                         app:tint="?attr/colorOnSurfaceVariant" />
+
+                    <ProgressBar
+                        android:id="@+id/attachmentProgress"
+                        android:layout_width="18dp"
+                        android:layout_height="18dp"
+                        android:indeterminateTint="?attr/colorPrimary"
+                        android:visibility="gone" />
 
                     <TextView
                         android:id="@+id/attachmentName"

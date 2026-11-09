@@ -2,6 +2,7 @@ package com.mcpai.chat.ui
 
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.ColorStateList
 import android.net.Uri
 import android.os.Bundle
 import android.speech.RecognitionListener
@@ -12,7 +13,9 @@ import android.text.TextWatcher
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.widget.EditText
+import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
@@ -21,6 +24,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.content.res.ResourcesCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -57,22 +61,28 @@ class MainActivity : AppCompatActivity() {
     private lateinit var micButton: MaterialButton
     private lateinit var sendButton: MaterialButton
     private lateinit var attachmentPreview: View
+    private lateinit var attachmentStateIcon: ImageView
+    private lateinit var attachmentProgress: ProgressBar
     private lateinit var attachmentName: TextView
     private lateinit var clearAttachmentButton: MaterialButton
+    private lateinit var voicePreview: View
+    private lateinit var voiceTranscript: TextView
+    private lateinit var voiceStopButton: MaterialButton
     private lateinit var statusBanner: TextView
     private lateinit var emptyView: TextView
+
     /** True while a turn is in flight; drives the send-button enabled state. */
     private var sendingActive = false
 
-    /** URI of the file the user has attached to the next message. */
-    private var selectedAttachmentUri: Uri? = null
+    /** True while the microphone is streaming to the recognizer. */
+    private var voiceListeningActive = false
 
     /** Picks a document from the device (no runtime permissions needed). */
     private val pickFileLauncher =
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             if (uri != null) {
-                selectedAttachmentUri = uri
-                showAttachmentChip(uri)
+                val displayName = uri.lastPathSegment?.substringAfterLast('/')?.let(Uri::decode)
+                viewModel.selectAttachment(uri.toString(), displayName?.takeUnless { it.isBlank() } ?: uri.toString())
             }
         }
 
@@ -137,21 +147,22 @@ class MainActivity : AppCompatActivity() {
         micButton = findViewById(R.id.micButton)
         sendButton = findViewById(R.id.sendButton)
         attachmentPreview = findViewById(R.id.attachmentPreview)
+        attachmentStateIcon = findViewById(R.id.attachmentStateIcon)
+        attachmentProgress = findViewById(R.id.attachmentProgress)
         attachmentName = findViewById(R.id.attachmentName)
         clearAttachmentButton = findViewById(R.id.clearAttachmentButton)
+        voicePreview = findViewById(R.id.voicePreview)
+        voiceTranscript = findViewById(R.id.voiceTranscript)
+        voiceStopButton = findViewById(R.id.voiceStopButton)
         statusBanner = findViewById(R.id.statusBanner)
         emptyView = findViewById(R.id.emptyView)
 
         sendButton.setOnClickListener { send() }
         attachButton.setOnClickListener { pickFileLauncher.launch(arrayOf("*/*")) }
-        clearAttachmentButton.setOnClickListener { clearSelectedAttachment() }
-        micButton.setOnClickListener {
-            if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-                recordAudioLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
-            } else {
-                startListening()
-            }
-        }
+        clearAttachmentButton.setOnClickListener { viewModel.clearAttachment() }
+        micButton.setOnClickListener { toggleVoiceInput() }
+        voiceStopButton.setOnClickListener { stopVoiceInput() }
+        setVoiceControls(active = false)
         input.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_SEND && canSendMessage()) {
                 send(); true
@@ -207,6 +218,11 @@ class MainActivity : AppCompatActivity() {
                 viewModel.approval.collect { request ->
                     if (request != null) askToolApproval(request)
                 }
+            }
+        }
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.attachment.collect(::renderAttachmentState)
             }
         }
         lifecycleScope.launch {
@@ -275,24 +291,84 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun canSendMessage(): Boolean =
-        !sendingActive && !input.text.isNullOrBlank()
+        !sendingActive && !voiceListeningActive && !input.text.isNullOrBlank()
 
     private fun updateSendButton() {
         if (!::sendButton.isInitialized) return
         sendButton.isEnabled = canSendMessage()
     }
 
-    private fun showAttachmentChip(uri: Uri) {
-        val displayName = uri.lastPathSegment?.substringAfterLast('/')?.let(Uri::decode)
-        attachmentName.text = displayName?.takeUnless { it.isBlank() } ?: uri.toString()
+    /** Paints the selected or in-flight attachment without owning its lifecycle. */
+    private fun renderAttachmentState(attachment: ComposerAttachment?) {
+        if (!::attachmentPreview.isInitialized) return
+
+        if (attachment == null) {
+            attachmentPreview.visibility = View.GONE
+            attachmentName.text = ""
+            attachmentStateIcon.visibility = View.VISIBLE
+            attachmentProgress.visibility = View.GONE
+            clearAttachmentButton.isEnabled = true
+            return
+        }
+
         attachmentPreview.visibility = View.VISIBLE
         emptyView.visibility = View.GONE
+        attachmentName.text = if (attachment.sending) {
+            getString(R.string.sending_attachment, attachment.name)
+        } else {
+            attachment.name
+        }
+        attachmentStateIcon.visibility = if (attachment.sending) View.GONE else View.VISIBLE
+        attachmentProgress.visibility = if (attachment.sending) View.VISIBLE else View.GONE
+        clearAttachmentButton.isEnabled = !attachment.sending
+        clearAttachmentButton.visibility = if (attachment.sending) View.GONE else View.VISIBLE
     }
 
-    private fun clearSelectedAttachment() {
-        selectedAttachmentUri = null
-        attachmentPreview.visibility = View.GONE
-        attachmentName.text = ""
+    /** Sets the microphone and recording panel to idle/listening appearance. */
+    private fun setVoiceControls(active: Boolean) {
+        if (!::micButton.isInitialized) return
+
+        voiceListeningActive = active
+        voicePreview.visibility = if (active) View.VISIBLE else View.GONE
+        if (active) {
+            voiceTranscript.text = getString(R.string.voice_speak_now)
+        }
+        micButton.setIconResource(if (active) R.drawable.ic_stop else R.drawable.ic_mic)
+        micButton.backgroundTintList = ColorStateList.valueOf(
+            ContextCompat.getColor(this, if (active) R.color.composer_voice_bg else R.color.composer_icon_bg),
+        )
+        micButton.setIconTint(
+            ColorStateList.valueOf(
+                ContextCompat.getColor(this, if (active) R.color.composer_voice_on else R.color.composer_icon_fg),
+            ),
+        )
+        micButton.contentDescription = getString(if (active) R.string.action_stop_voice_input else R.string.action_voice_input)
+        updateSendButton()
+    }
+
+    private fun toggleVoiceInput() {
+        if (voiceListeningActive) {
+            stopVoiceInput()
+            return
+        }
+        if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            recordAudioLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+            return
+        }
+        startListening()
+    }
+
+    private fun stopVoiceInput() {
+        val recognizer = speechRecognizer ?: return
+        voiceTranscript.text = getString(R.string.voice_finalizing)
+        recognizer.stopListening()
+    }
+
+    /** Ends dictation and restores the normal composer state. */
+    private fun finishVoiceInput() {
+        speechRecognizer?.cancel()
+        speechRecognizer = null
+        setVoiceControls(active = false)
     }
 
     private fun send() {
@@ -301,11 +377,7 @@ class MainActivity : AppCompatActivity() {
         input.setText("")
         emptyView.visibility = View.GONE
 
-        val attachmentPath = selectedAttachmentUri?.toString()
-        val attachmentDisplayName = selectedAttachmentUri?.lastPathSegment?.let(Uri::decode)
-        clearSelectedAttachment()
-
-        viewModel.send(text, attachmentPath, attachmentDisplayName)
+        viewModel.send(text)
     }
 
     /** The one active approval dialog, so a second request cannot stack on top. */
@@ -403,53 +475,55 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** Starts speech recognition and inserts results into the input field. */
+    /** Starts dictation and keeps it live until the user stops or recognition ends. */
     private fun startListening() {
         speechRecognizer?.cancel()
         speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
+        setVoiceControls(active = true)
         speechRecognizer?.setRecognitionListener(object : RecognitionListener {
-            override fun onReadyForSpeech(params: Bundle) {}
-            override fun onBeginningOfSpeech() {
-                micButton.isEnabled = false
-                micButton.alpha = 0.5f
-                statusBanner.text = "Listening…"
-                statusBanner.visibility = View.VISIBLE
+            override fun onReadyForSpeech(params: Bundle) {
+                voiceTranscript.text = getString(R.string.voice_speak_now)
             }
+
+            override fun onBeginningOfSpeech() {
+                voiceTranscript.text = getString(R.string.voice_speak_now)
+            }
+
             override fun onRmsChanged(rmsdB: Float) {}
             override fun onBufferReceived(buffer: ByteArray) {}
+
             override fun onEndOfSpeech() {
-                micButton.isEnabled = true
-                micButton.alpha = 1f
-                statusBanner.visibility = View.GONE
+                voiceTranscript.text = getString(R.string.voice_finalizing)
             }
+
             override fun onError(error: Int) {
-                micButton.isEnabled = true
-                micButton.alpha = 1f
-                statusBanner.visibility = View.GONE
-                speechRecognizer?.cancel()
-                speechRecognizer = null
+                finishVoiceInput()
                 Toast.makeText(this@MainActivity, "Speech recognition error: $error", Toast.LENGTH_SHORT).show()
             }
+
             override fun onResults(results: Bundle) {
                 val matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION) ?: emptyList()
                 if (matches.isNotEmpty()) {
                     val spoken = matches[0]
-                    val current = input.text.toString()
+                    val current = input.text.toString().trim()
                     input.setText(if (current.isNotEmpty()) "$current $spoken" else spoken)
                     input.setSelection(input.text.length)
                 }
-                micButton.isEnabled = true
-                micButton.alpha = 1f
-                statusBanner.visibility = View.GONE
-                speechRecognizer?.cancel()
-                speechRecognizer = null
+                finishVoiceInput()
             }
-            override fun onPartialResults(results: Bundle) {}
+
+            override fun onPartialResults(results: Bundle) {
+                val partial = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
+                if (!partial.isNullOrBlank() && voiceListeningActive) {
+                    voiceTranscript.text = partial
+                }
+            }
+
             override fun onEvent(eventType: Int, params: Bundle) {}
         })
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
         }
         speechRecognizer?.startListening(intent)
@@ -507,6 +581,8 @@ class MainActivity : AppCompatActivity() {
         // recognition session that outlives it keeps the recognizer alive and
         // announces a banner the user cannot see.
         speechRecognizer?.cancel()
+        speechRecognizer = null
+        setVoiceControls(active = false)
         super.onPause()
     }
 

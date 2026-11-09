@@ -12,6 +12,10 @@
     <string name="action_send">Send</string>
     <string name="action_attach">Attach file</string>
     <string name="action_remove_attachment">Remove attachment</string>
+    <string name="action_stop_voice_input">Stop voice input</string>
+    <string name="voice_speak_now">Listening… speak now</string>
+    <string name="voice_finalizing">Processing…</string>
+    <string name="sending_attachment">Sending %1$s…</string>
     <string name="action_voice_input">Voice input</string>
     <string name="action_servers">MCP servers</string>
     <string name="action_settings">AI provider</string>

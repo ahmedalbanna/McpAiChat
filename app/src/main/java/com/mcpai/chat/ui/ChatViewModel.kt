@@ -12,6 +12,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
+/** UI state for a file attached to the next message. */
+data class ComposerAttachment(
+    val name: String,
+    /** True after the user taps Send and until the turn ends. */
+    val sending: Boolean,
+)
+
 /**
  * Owns the conversation turn so rotation and configuration changes do not kill
  * it.
@@ -36,6 +43,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _sending = MutableStateFlow(false)
     val sending: StateFlow<Boolean> = _sending.asStateFlow()
+
+    private val _attachment = MutableStateFlow<ComposerAttachment?>(null)
+    val attachment: StateFlow<ComposerAttachment?> = _attachment.asStateFlow()
+
+    private var selectedAttachmentPath: String? = null
+    private var selectedAttachmentName: String? = null
 
     private var turnJob: Job? = null
 
@@ -66,15 +79,39 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         reloadHistory()
     }
 
-    fun send(text: String, attachmentPath: String?, attachmentName: String?) {
+    /** Stores a file as the pending composer attachment. */
+    fun selectAttachment(path: String, name: String) {
+        if (_attachment.value?.sending == true) return
+        selectedAttachmentPath = path
+        selectedAttachmentName = name
+        _attachment.value = ComposerAttachment(name, sending = false)
+    }
+
+    /** Removes the pending attachment. A sending attachment is deliberately immutable. */
+    fun clearAttachment() {
+        if (_attachment.value?.sending == true) return
+        selectedAttachmentPath = null
+        selectedAttachmentName = null
+        _attachment.value = null
+    }
+
+    fun send(text: String) {
         if (text.isBlank() || turnJob?.isActive == true) return
+
+        val attachmentPath = selectedAttachmentPath
+        val attachmentName = selectedAttachmentName
+        selectedAttachmentPath = null
+        selectedAttachmentName = null
+        _attachment.value = attachmentName?.let { ComposerAttachment(it, sending = true) }
+
         // Start clean: the previous turn's error stays visible until this send.
         _status.value = null
         _sending.value = true
         turnJob = viewModelScope.launch {
             var lastError: String? = null
-            repo.send(text, attachmentPath, attachmentName).collect { event ->
-                when (event) {
+            try {
+                repo.send(text, attachmentPath, attachmentName).collect { event ->
+                    when (event) {
                     is ChatEvent.UserMessage ->
                         _rows.value += ChatRow.User(event.id, event.text)
 
@@ -124,12 +161,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         lastError = event.message
                         _status.value = event.message
                     }
+                    }
                 }
+            } finally {
+                // Only transient progress clears at turn end. An error stays on
+                // screen until the next send, otherwise it flashes and vanishes.
+                if (lastError == null) _status.value = null
+                _attachment.value = null
+                _sending.value = false
             }
-            // Only transient progress clears at turn end. An error stays on
-            // screen until the next send, otherwise it flashes and vanishes.
-            if (lastError == null) _status.value = null
-            _sending.value = false
         }
     }
 

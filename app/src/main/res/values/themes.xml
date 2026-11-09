@@ -158,4 +158,15 @@
         <item name="android:insetBottom">0dp</item>
     </style>
 
+    <style name="Widget.McpAiChat.ComposerVoiceButton" parent="Widget.Material3.Button.IconButton">
+        <item name="backgroundTint">@color/composer_voice_bg</item>
+        <item name="iconTint">@color/composer_voice_on</item>
+        <item name="iconSize">20dp</item>
+        <item name="cornerRadius">16dp</item>
+        <item name="android:insetLeft">0dp</item>
+        <item name="android:insetRight">0dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+    </style>
+
 </resources>
