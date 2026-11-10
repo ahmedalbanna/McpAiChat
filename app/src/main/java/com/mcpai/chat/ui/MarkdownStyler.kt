@@ -266,6 +266,9 @@ object MarkdownStyler {
                             Spannable.SPAN_EXCLUSIVE_EXCLUSIVE,
                         )
                     }
+
+                    MdSpan.STRIKETHROUGH ->
+                        out.setSpan(android.text.style.StrikethroughSpan(), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
                 }
             }
 

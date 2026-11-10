@@ -489,12 +489,15 @@ class MarkdownTest {
     }
 
     @Test
-    fun `an opener longer than any closer falls back to the first usable one`() {
-        // `**bold*` is malformed: no closer of the same length exists, so the
-        // first usable one is taken and the leftover marker stays visible.
+    fun `an unmatched double marker keeps the first literal`() {
+        // `**bold*` is malformed: CommonMark pairs the closing run with the
+        // inner emphasis run, so the first `*` stays visible and "bold" is
+        // emphasised, instead of being silently swallowed.
         val runs = Markdown.parseInline("**bold* tail")
-        assertEquals(listOf("bold", " tail"), runs.map { it.text })
-        assertEquals(setOf(MdSpan.BOLD), runs[0].spans)
+        assertEquals(listOf("*", "bold", " tail"), runs.map { it.text })
+        assertEquals(emptySet<MdSpan>(), runs[0].spans)
+        assertEquals(setOf(MdSpan.ITALIC), runs[1].spans)
+        assertEquals(emptySet<MdSpan>(), runs[2].spans)
     }
 
     @Test
