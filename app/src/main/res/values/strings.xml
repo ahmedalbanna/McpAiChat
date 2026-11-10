@@ -126,9 +126,13 @@
     <string name="label_declined">declined</string>
 
     <string name="tool_approval_title">Run this tool?</string>
-    <string name="tool_approval_message">%1$s on %2$s\n\nArguments:\n%3$s</string>
+    <string name="tool_approval_subtitle">An MCP server wants to run a tool on your behalf.</string>
+    <string name="approval_arguments_label">Arguments</string>
+    <string name="approval_trust_session_label">Stop asking for \"%1$s\" this session</string>
+    <string name="approval_trust_session_hint">Tools from this server run without confirmation until the app restarts.</string>
+    <string name="approval_always_allow_label">Always allow \"%1$s\"</string>
+    <string name="approval_always_allow_hint">Saved for this server on this device. Manage it in Settings → Tools.</string>
     <string name="tool_approval_allow">Allow</string>
     <string name="tool_approval_deny">Deny</string>
-    <string name="tool_approval_trust">Trust \"%1$s\" for this conversation</string>
     <string name="label_auto_approve">Auto-approve this tool</string>
 </resources>

@@ -14,7 +14,6 @@ import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.widget.EditText
 import android.widget.ImageView
-import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
@@ -396,38 +395,25 @@ class MainActivity : AppCompatActivity() {
     private fun askToolApproval(request: ChatEvent.ToolApprovalRequested) {
         if (approvalDialog?.isShowing == true) return
 
-        statusBanner.text = getString(R.string.tool_approval_title)
-        statusBanner.visibility = View.VISIBLE
+        val dialogView = layoutInflater.inflate(R.layout.dialog_tool_approval, null)
+        dialogView.findViewById<TextView>(R.id.approvalToolName).text = request.name
+        dialogView.findViewById<TextView>(R.id.approvalServer).text = request.serverName
+        dialogView.findViewById<TextView>(R.id.approvalArgs).text = approvalArgsText(request.args)
+        dialogView.findViewById<TextView>(R.id.approvalTrustLabel).text =
+            getString(R.string.approval_trust_session_label, request.serverName)
+        dialogView.findViewById<TextView>(R.id.approvalAutoLabel).text =
+            getString(R.string.approval_always_allow_label, request.name)
 
-        val container = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(48, 16, 48, 0)
-        }
-        val trustBox = com.google.android.material.checkbox.MaterialCheckBox(this).apply {
-            text = getString(R.string.tool_approval_trust, request.serverName)
-            isChecked = false
-        }
-        val autoApproveBox = com.google.android.material.checkbox.MaterialCheckBox(this).apply {
-            text = getString(R.string.label_auto_approve)
-            isChecked = false
-        }
-        container.addView(trustBox)
-        container.addView(autoApproveBox)
+        val trustSwitch = dialogView.findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.approvalTrustSwitch)
+        val autoSwitch = dialogView.findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.approvalAutoSwitch)
 
         val dialog = AlertDialog.Builder(this)
-            .setTitle(R.string.tool_approval_title)
-            .setMessage(
-                getString(
-                    R.string.tool_approval_message,
-                    request.name,
-                    request.serverName,
-                    prettyArgs(request.args),
-                ),
-            )
-            .setView(container)
+            // Title and message live inside the inflated view so the layout can
+            // use the icon, tool identity card and bounded arguments block.
+            .setView(dialogView)
             .setCancelable(false)
             .setPositiveButton(R.string.tool_approval_allow) { _, _ ->
-                viewModel.approve(request, approved = true, trust = trustBox.isChecked, autoApprove = autoApproveBox.isChecked)
+                viewModel.approve(request, approved = true, trust = trustSwitch.isChecked, autoApprove = autoSwitch.isChecked)
             }
             .setNegativeButton(R.string.tool_approval_deny) { _, _ ->
                 viewModel.approve(request, approved = false, trust = false, autoApprove = false)
@@ -438,8 +424,20 @@ class MainActivity : AppCompatActivity() {
             }
             .create()
 
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE)?.setTextColor(
+                androidx.core.content.ContextCompat.getColor(this, R.color.tool_accent),
+            )
+        }
+
         approvalDialog = dialog
         dialog.show()
+    }
+
+    /** Pretty-prints tool arguments, bounded so huge payloads stay readable and cheap. */
+    private fun approvalArgsText(raw: String): String {
+        val pretty = prettyArgs(raw)
+        return if (pretty.length > 4000) pretty.take(4000) + "\n…" else pretty
     }
 
     private fun prettyArgs(raw: String): String = runCatching {
