@@ -2,23 +2,14 @@ package com.mcpai.chat.ui
 
 import android.content.Intent
 import android.os.Bundle
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
-import android.widget.TextView
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
+import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.lifecycleScope
-import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
-import com.google.android.material.button.MaterialButton
-import com.mcpai.chat.R
 import com.mcpai.chat.data.ChatDatabase
 import com.mcpai.chat.data.ChatRepository
-import com.mcpai.chat.util.Markdown
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.Locale
 
 /**
  * Lists existing conversations so the user can switch between them or start a new one.
@@ -29,25 +20,21 @@ import java.util.Locale
 class ConversationListActivity : AppCompatActivity() {
 
     private lateinit var repo: ChatRepository
-    private lateinit var adapter: ConversationAdapter
-    private lateinit var conversationSummary: TextView
+
+    private val summaries = mutableStateOf<List<ChatDatabase.ConversationSummary>>(emptyList())
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_conversation_list)
+        enableEdgeToEdge()
         repo = ChatRepository.get(applicationContext)
-        conversationSummary = findViewById(R.id.conversationSummary)
-
-        adapter = ConversationAdapter { id ->
-            openConversation(id)
-        }
-
-        val convList = findViewById<RecyclerView>(R.id.convList)
-        convList.layoutManager = LinearLayoutManager(this@ConversationListActivity)
-        convList.adapter = adapter
-
-        findViewById<MaterialButton>(R.id.newChatButton).setOnClickListener {
-            startNewConversation()
+        setContent {
+            com.mcpai.chat.ui.theme.McpAiChatTheme {
+                ConversationListScreen(
+                    summaries = summaries.value,
+                    onOpen = ::openConversation,
+                    onNewChat = ::startNewConversation,
+                )
+            }
         }
     }
 
@@ -55,7 +42,7 @@ class ConversationListActivity : AppCompatActivity() {
         super.onResume()
         // Reload every time this screen comes back into focus: a conversation
         // created in MainActivity is not visible until then.
-        lifecycleScope.launch { reload(adapter) }
+        lifecycleScope.launch { summaries.value = repo.allConversations() }
     }
 
     private fun openConversation(id: Long) {
@@ -68,62 +55,4 @@ class ConversationListActivity : AppCompatActivity() {
     }
 
     private fun startNewConversation() = openConversation(repo.newConversation())
-
-    private fun reload(adapter: ConversationAdapter) {
-        lifecycleScope.launch {
-            val summaries = repo.allConversations()
-            adapter.submit(summaries)
-            conversationSummary.text = resources.getQuantityString(
-                R.plurals.conversation_count,
-                summaries.size,
-                summaries.size,
-            )
-            findViewById<TextView>(R.id.emptyView).visibility =
-                if (summaries.isEmpty()) View.VISIBLE else View.GONE
-        }
-    }
-
-    /** Adapter for the conversation list. */
-    private class ConversationAdapter(
-        private val onClick: (Long) -> Unit,
-    ) : RecyclerView.Adapter<ConversationAdapter.Holder>() {
-
-        private var items: List<ChatDatabase.ConversationSummary> = emptyList()
-
-        fun submit(summaries: List<ChatDatabase.ConversationSummary>) {
-            this.items = summaries
-            notifyDataSetChanged()
-        }
-
-        override fun getItemCount(): Int = items.size
-
-        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Holder {
-            val view = LayoutInflater.from(parent.context)
-                .inflate(R.layout.item_conversation, parent, false)
-            return Holder(view)
-        }
-
-        override fun onBindViewHolder(holder: Holder, position: Int) {
-            val item = items[position]
-            val context = holder.itemView.context
-            holder.title.text = item.title.takeIf { it.isNotBlank() } ?: context.getString(R.string.untitled_conversation)
-            holder.preview.text = item.lastMessage
-                ?.takeIf { it.isNotBlank() }
-                ?.let { Markdown.plain(it).take(140) }
-                ?: context.getString(R.string.no_message_preview)
-            holder.updated.text = formatTime(item.updatedAt)
-            holder.itemView.setOnClickListener { onClick(item.id) }
-        }
-
-        class Holder(view: View) : RecyclerView.ViewHolder(view) {
-            val title: TextView = view.findViewById(R.id.convTitle)
-            val preview: TextView = view.findViewById(R.id.convPreview)
-            val updated: TextView = view.findViewById(R.id.convUpdated)
-        }
-    }
-}
-
-private fun formatTime(millis: Long): String {
-    val sdf = SimpleDateFormat("MMM d · HH:mm", Locale.getDefault())
-    return sdf.format(java.util.Date(millis))
 }
