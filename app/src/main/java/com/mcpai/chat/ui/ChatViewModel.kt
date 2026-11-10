@@ -7,6 +7,7 @@ import com.mcpai.chat.data.ChatEvent
 import com.mcpai.chat.data.ChatRepository
 import com.mcpai.chat.data.StoredMessage
 import kotlinx.coroutines.Job
+import timber.log.Timber
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -200,7 +201,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun approve(request: ChatEvent.ToolApprovalRequested, approved: Boolean, trust: Boolean, autoApprove: Boolean) {
-        if (_approval.value?.id != request.id) return
+        if (_approval.value?.id != request.id) {
+            Timber.tag("Mcp.Approval").w("ignoring stale answer: %s (pending: %s)", request.name, _approval.value?.name)
+            return
+        }
         _approval.value = null
         repo.approveToolCall(approved = approved, trustServer = trust, autoApproveTool = autoApprove)
     }

@@ -32,6 +32,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
 import com.mcpai.chat.BuildConfig
+import timber.log.Timber
 import com.mcpai.chat.R
 import com.mcpai.chat.data.ChatEvent
 import com.mcpai.chat.data.ChatRepository
@@ -393,7 +394,11 @@ class MainActivity : AppCompatActivity() {
      * this is the single point where a third-party MCP server gets executed.
      */
     private fun askToolApproval(request: ChatEvent.ToolApprovalRequested) {
-        if (approvalDialog?.isShowing == true) return
+        if (approvalDialog?.isShowing == true) {
+            Timber.tag("Mcp.Approval").w("dialog already open; dropping duplicate approval for %s", request.name)
+            return
+        }
+        Timber.tag("Mcp.Approval").d("building dialog: tool=%s server=%s", request.name, request.serverName)
 
         val dialogView = layoutInflater.inflate(R.layout.dialog_tool_approval, null)
         dialogView.findViewById<TextView>(R.id.approvalToolName).text = request.name
@@ -432,6 +437,7 @@ class MainActivity : AppCompatActivity() {
 
         approvalDialog = dialog
         dialog.show()
+        Timber.tag("Mcp.Approval").d("dialog shown: tool=%s", request.name)
     }
 
     /** Pretty-prints tool arguments, bounded so huge payloads stay readable and cheap. */

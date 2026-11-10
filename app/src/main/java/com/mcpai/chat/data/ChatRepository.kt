@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
+import timber.log.Timber
 
 /** UI-facing events produced by a conversation turn. */
 sealed interface ChatEvent {
@@ -342,8 +343,21 @@ class ChatRepository internal constructor(context: Context) {
                     !isAutoApproved && settings.confirmToolCalls && serverName !in sessionTrustedServers
 
                 if (!needsApproval) {
+                    Timber.tag("Mcp.Approval").d(
+                        "skip dialog: tool=%s server=%s autoApproved=%s sessionTrusted=%s",
+                        call.name,
+                        serverName,
+                        isAutoApproved,
+                        serverName in sessionTrustedServers,
+                    )
                     true
                 } else {
+                    Timber.tag("Mcp.Approval").d(
+                        "asking approval: tool=%s server=%s messageId=%s",
+                        call.name,
+                        serverName,
+                        toolMessageIds[call.id] ?: 0L,
+                    )
                     send(
                         ChatEvent.ToolApprovalRequested(
                             id = toolMessageIds[call.id] ?: 0L,
@@ -353,6 +367,12 @@ class ChatRepository internal constructor(context: Context) {
                         ),
                     )
                     val decision = approvalAnswers.receive()
+                    Timber.tag("Mcp.Approval").d(
+                        "decision: approved=%s trust=%s autoApprove=%s",
+                        decision.approved,
+                        decision.trustServer,
+                        decision.autoApproveTool,
+                    )
                     if (decision.trustServer) sessionTrustedServers += serverName
                     if (decision.autoApproveTool && serverId != null) {
                         toolApprovals.setAutoApproved(serverId, call.name, true)

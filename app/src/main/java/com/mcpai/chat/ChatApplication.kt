@@ -1,7 +1,9 @@
 package com.mcpai.chat
 
 import android.app.Application
+import com.mcpai.chat.BuildConfig
 import com.mcpai.chat.data.ChatRepository
+import timber.log.Timber
 
 /**
  * Process owner for the shared [ChatRepository].
@@ -18,6 +20,10 @@ class ChatApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // Release builds plant no trees, so diagnostics never reach logcat/release builds.
+        if (BuildConfig.DEBUG) {
+            Timber.plant(Timber.DebugTree())
+        }
         repository = ChatRepository(this)
     }
 
