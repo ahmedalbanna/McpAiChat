@@ -13,25 +13,27 @@ Android client (Kotlin, `com.mcpai.chat`) for the Model Context Protocol: it con
 
 ## Where things live
 
-| Concern                           | File                                                                             |
-| --------------------------------- | -------------------------------------------------------------------------------- |
-| Server config model               | `app/src/main/java/com/mcpai/chat/mcp/McpModels.kt`                              |
-| MCP client and transports         | `mcp/McpClient.kt`, `mcp/McpTransport.kt`, `mcp/HttpMcpTransport.kt`             |
-| stdio transport                   | `mcp/StdioMcpTransport.kt` (reference server: `tools/stdio_mcp_server.py`)       |
-| Connection state and tool routing | `mcp/McpRegistry.kt`                                                             |
-| Certificate pinning               | `mcp/SpkiPinVerifier.kt` (decision), `mcp/HttpMcpTransport.kt` (enforcement)     |
-| Pin survival across edits         | `mcp/SpkiPinPolicy.kt`                                                           |
-| Retry policy                      | `mcp/ConnectionRetryPolicy.kt`                                                   |
-| URL rules                         | `mcp/ServerUrlValidator.kt`                                                      |
-| Encrypted settings                | `data/EncryptedPreferences.kt`, `data/Settings.kt`                               |
-| Server config (de)serialisation   | `data/ServerConfigSerializer.kt`                                                 |
-| Tool approvals                    | `data/ToolApprovalStore.kt` (+ `tool_approvals` table in `data/ChatDatabase.kt`) |
-| Export / import                   | `data/SettingsExporter.kt`                                                       |
-| Conversation turn loop            | `engine/ChatEngine.kt`                                                           |
-| LLM provider                      | `llm/OpenAiProvider.kt`                                                          |
-| Error categories                  | `util/ChatError.kt` (`ErrorClassifier`)                                          |
-| Server and chat UI                | `ui/ServersActivity.kt`, `ui/ServerEditActivity.kt`, `ui/MainActivity.kt`        |
-| Device-only tests                 | `app/src/androidTest/java/com/mcpai/chat/`                                       |
+| Concern                           | File                                                                                                                                                                                                                                                                                       |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Server config model               | `app/src/main/java/com/mcpai/chat/mcp/McpModels.kt`                                                                                                                                                                                                                                        |
+| MCP client and transports         | `mcp/McpClient.kt`, `mcp/McpTransport.kt`, `mcp/HttpMcpTransport.kt`                                                                                                                                                                                                                       |
+| stdio transport                   | `mcp/StdioMcpTransport.kt` (reference server: `tools/stdio_mcp_server.py`)                                                                                                                                                                                                                 |
+| Connection state and tool routing | `mcp/McpRegistry.kt`                                                                                                                                                                                                                                                                       |
+| Certificate pinning               | `mcp/SpkiPinVerifier.kt` (decision), `mcp/HttpMcpTransport.kt` (enforcement)                                                                                                                                                                                                               |
+| Pin survival across edits         | `mcp/SpkiPinPolicy.kt`                                                                                                                                                                                                                                                                     |
+| Retry policy                      | `mcp/ConnectionRetryPolicy.kt`                                                                                                                                                                                                                                                             |
+| URL rules                         | `mcp/ServerUrlValidator.kt`                                                                                                                                                                                                                                                                |
+| Encrypted settings                | `data/EncryptedPreferences.kt`, `data/Settings.kt`                                                                                                                                                                                                                                         |
+| Server config (de)serialisation   | `data/ServerConfigSerializer.kt`                                                                                                                                                                                                                                                           |
+| Tool approvals                    | `data/ToolApprovalStore.kt` (+ `tool_approvals` table in `data/ChatDatabase.kt`)                                                                                                                                                                                                           |
+| Export / import                   | `data/SettingsExporter.kt`                                                                                                                                                                                                                                                                 |
+| Conversation turn loop            | `engine/ChatEngine.kt`                                                                                                                                                                                                                                                                     |
+| LLM provider                      | `llm/OpenAiProvider.kt`                                                                                                                                                                                                                                                                    |
+| Error categories                  | `util/ChatError.kt` (`ErrorClassifier`)                                                                                                                                                                                                                                                    |
+| Server and chat UI                | Compose screens: `ui/{ConversationList,Main}Screen.kt`, `ui/ServersScreen.kt`, `ui/CatalogScreen.kt`, `ui/ServerEditScreen.kt`, `ui/SettingsScreen.kt`, `ui/ToolDetailScreen.kt`, rows in `ui/ChatRows.kt`, approval in `ui/ToolApprovalDialog.kt`, shared alert in `ui/AppAlertDialog.kt` |
+| Theme                             | `ui/theme/{Color,Theme,Type}.kt` — Material You on API 31+, brand fallback, `LocalChatColors` for bubble/composer/tool colors                                                                                                                                                              |
+| Markdown                          | `util/Markdown.kt` — CommonMark 0.32.0 parser (GFM tables pre-parsed spec-plus); `ui/markdown/MarkdownContent.kt` — Compose renderer                                                                                                                                                       |
+| Device-only tests                 | `app/src/androidTest/java/com/mcpai/chat/`                                                                                                                                                                                                                                                 |
 
 ## Conventions
 

@@ -3,7 +3,7 @@ package com.mcpai.chat.ui
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.appcompat.app.AppCompatActivity
+import androidx.activity.ComponentActivity
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.lifecycleScope
 import com.mcpai.chat.data.ChatRepository
@@ -11,7 +11,7 @@ import com.mcpai.chat.ui.theme.McpAiChatTheme
 import kotlinx.coroutines.launch
 
 /** Lists the tools advertised by the connected MCP servers, with auto-approve toggles. */
-class ToolDetailActivity : AppCompatActivity() {
+class ToolDetailActivity : ComponentActivity() {
 
     private val tools = mutableStateOf<List<com.mcpai.chat.mcp.McpTool>>(emptyList())
     private val loading = mutableStateOf(true)

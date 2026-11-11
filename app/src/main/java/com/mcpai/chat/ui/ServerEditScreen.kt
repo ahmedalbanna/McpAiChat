@@ -49,17 +49,6 @@ import androidx.compose.ui.unit.dp
 import com.mcpai.chat.R
 import com.mcpai.chat.ui.theme.chatColors
 
-/** Form state for the server editor. */
-data class ServerEditForm(
-    val name: String = "",
-    val url: String = "",
-    val authHeaderName: String = "",
-    val authHeaderValue: String = "",
-    val timeout: String = "30",
-    val trusted: Boolean = false,
-    val isExisting: Boolean = false,
-)
-
 /**
  * Adds or edits one MCP server (Compose): name, URL, optional auth header,
  * timeout and trusted-domain toggle, with a real `initialize` + `tools/list`

@@ -4,7 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.appcompat.app.AppCompatActivity
+import androidx.activity.ComponentActivity
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.lifecycleScope
 import com.mcpai.chat.data.ChatDatabase
@@ -17,7 +17,7 @@ import kotlinx.coroutines.launch
  * This is the app's entry point: MainActivity opens a specific conversation when launched
  * with a `conversation_id` extra, otherwise it creates (or reuses) the latest conversation.
  */
-class ConversationListActivity : AppCompatActivity() {
+class ConversationListActivity : ComponentActivity() {
 
     private lateinit var repo: ChatRepository
 

@@ -6,24 +6,21 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.appcompat.app.AppCompatActivity
+import androidx.activity.ComponentActivity
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.lifecycleScope
 import com.mcpai.chat.R
 import com.mcpai.chat.data.Settings
-import com.mcpai.chat.mcp.HttpMcpTransport
 import com.mcpai.chat.mcp.McpClient
 import com.mcpai.chat.mcp.McpServerConfig
 import com.mcpai.chat.mcp.ServerUrlProblem
 import com.mcpai.chat.mcp.ServerUrlValidator
-import com.mcpai.chat.mcp.SpkiPinPolicy
 import com.mcpai.chat.util.ChatError
 import com.mcpai.chat.util.ErrorClassifier
 import com.mcpai.chat.ui.theme.McpAiChatTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.util.UUID
 
 /**
  * Adds or edits one MCP server and can probe it with a real `initialize` +
@@ -31,13 +28,14 @@ import java.util.UUID
  *
  * Fields: name, URL, auth header name/value, timeout seconds, trusted domain toggle.
  */
-class ServerEditActivity : AppCompatActivity() {
+class ServerEditActivity : ComponentActivity() {
 
     private lateinit var settings: Settings
     private var existingId: String? = null
     private var existingConfig: McpServerConfig? = null
     private val form = mutableStateOf(ServerEditForm())
     private val testInFlight = mutableStateOf(false)
+    private val errorDialog = mutableStateOf<AppAlertDialogData?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -74,35 +72,16 @@ class ServerEditActivity : AppCompatActivity() {
                         finish()
                     },
                 )
+                AppAlertDialog(
+                    data = errorDialog.value,
+                    onDismiss = { errorDialog.value = null },
+                )
             }
         }
     }
 
-    /**
-     * The configuration as the form currently describes it.
-     *
-     * Fields the form does not show — the SPKI pin, custom headers, the
-     * enabled flag — are carried over from the stored configuration, so
-     * editing a server never silently drops them. The pin is kept only while
-     * the server stays trusted and points at the same host.
-     */
-    private fun currentConfig(): McpServerConfig {
-        val existing = existingConfig
-        val f = form.value
-        val url = HttpMcpTransport.normaliseUrl(f.url.trim())
-        return McpServerConfig(
-            id = existingId ?: UUID.randomUUID().toString(),
-            name = f.name.trim().ifEmpty { "MCP server" },
-            url = url,
-            enabled = existing?.enabled ?: true,
-            authHeaderName = f.authHeaderName.trim().takeIf { it.isNotEmpty() },
-            authHeaderValue = f.authHeaderValue.trim().takeIf { it.isNotEmpty() },
-            timeoutSeconds = f.timeout.trim().toIntOrNull() ?: 30,
-            customHeaders = existing?.customHeaders ?: emptyMap(),
-            isTrusted = f.trusted,
-            spkiPin = SpkiPinPolicy.pinAfterEdit(existing, url, f.trusted),
-        )
-    }
+    private fun currentConfig(): McpServerConfig =
+        ServerDraft.build(existingConfig, form.value)
 
     private fun save() {
         val url = form.value.url.trim()
@@ -158,22 +137,22 @@ class ServerEditActivity : AppCompatActivity() {
                     val error = ErrorClassifier.classify(e, config.name)
                     when (error) {
                         is ChatError.SpkiMismatch -> {
-                            androidx.appcompat.app.AlertDialog.Builder(this@ServerEditActivity)
-                                .setTitle(R.string.error_spki_mismatch_title)
-                                .setMessage(getString(R.string.error_spki_mismatch_message, config.name))
-                                .setPositiveButton(R.string.error_spki_retrust) { _, _ ->
+                            errorDialog.value = AppAlertDialogData(
+                                title = R.string.error_spki_mismatch_title,
+                                message = getString(R.string.error_spki_mismatch_message, config.name),
+                                confirmLabel = R.string.error_spki_retrust,
+                                onConfirm = {
                                     settings.addServer(config.copy(isTrusted = false, spkiPin = null))
-                                }
-                                .setNegativeButton(R.string.action_cancel, null)
-                                .show()
+                                },
+                            )
                         }
                         is ChatError.ServerUnavailable -> {
-                            androidx.appcompat.app.AlertDialog.Builder(this@ServerEditActivity)
-                                .setTitle(R.string.error_server_unavailable_title)
-                                .setMessage(getString(R.string.error_server_unavailable_message, config.name, error.message))
-                                .setPositiveButton(R.string.error_retry) { _, _ -> test() }
-                                .setNegativeButton(R.string.action_cancel, null)
-                                .show()
+                            errorDialog.value = AppAlertDialogData(
+                                title = R.string.error_server_unavailable_title,
+                                message = getString(R.string.error_server_unavailable_message, config.name, error.message),
+                                confirmLabel = R.string.error_retry,
+                                onConfirm = { test() },
+                            )
                         }
                         else -> {
                             Toast.makeText(this@ServerEditActivity, "Failed: ${e.message}", Toast.LENGTH_LONG).show()

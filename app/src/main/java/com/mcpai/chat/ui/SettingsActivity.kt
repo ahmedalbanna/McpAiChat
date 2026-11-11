@@ -5,7 +5,7 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.appcompat.app.AppCompatActivity
+import androidx.activity.ComponentActivity
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.lifecycleScope
 import com.mcpai.chat.R
@@ -22,7 +22,7 @@ import kotlinx.coroutines.withContext
  * The model list is fetched from the provider's `/models` endpoint so the
  * available models can be picked instead of typed.
  */
-class SettingsActivity : AppCompatActivity() {
+class SettingsActivity : ComponentActivity() {
 
     private lateinit var settings: Settings
     private val form = mutableStateOf(ProviderForm())

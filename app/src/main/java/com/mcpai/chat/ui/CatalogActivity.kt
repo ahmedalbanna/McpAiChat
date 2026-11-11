@@ -4,7 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.appcompat.app.AppCompatActivity
+import androidx.activity.ComponentActivity
 import com.mcpai.chat.mcp.FreeMcpCatalog
 import com.mcpai.chat.ui.theme.McpAiChatTheme
 
@@ -15,7 +15,7 @@ import com.mcpai.chat.ui.theme.McpAiChatTheme
  * awesome-remote-mcp-servers directory with a real `initialize` + `tools/list`
  * handshake, so every entry here is known to answer.
  */
-class CatalogActivity : AppCompatActivity() {
+class CatalogActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

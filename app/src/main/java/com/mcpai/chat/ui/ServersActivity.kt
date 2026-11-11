@@ -6,7 +6,7 @@ import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AppCompatActivity
+import androidx.activity.ComponentActivity
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.lifecycleScope
 import com.mcpai.chat.R
@@ -26,10 +26,11 @@ import java.util.UUID
  * Manages the MCP servers the app talks to and shows the tools each of them
  * advertises (Compose).
  */
-class ServersActivity : AppCompatActivity() {
+class ServersActivity : ComponentActivity() {
 
     private lateinit var settings: Settings
     private val state = mutableStateOf(ServerRows(emptyList(), loading = true))
+    private val errorDialog = mutableStateOf<AppAlertDialogData?>(null)
 
     /**
      * Receives a server picked from the free-server catalogue and saves it.
@@ -89,6 +90,10 @@ class ServersActivity : AppCompatActivity() {
                         importLauncher.launch(arrayOf("application/json", "text/plain"))
                     },
                     onBack = ::finish,
+                )
+                AppAlertDialog(
+                    data = errorDialog.value,
+                    onDismiss = { errorDialog.value = null },
                 )
             }
         }
@@ -174,29 +179,29 @@ class ServersActivity : AppCompatActivity() {
 
     private fun showSpkiMismatchDialog(config: McpServerConfig?, reason: String) {
         val serverName = config?.name ?: "Unknown server"
-        androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle(R.string.error_spki_mismatch_title)
-            .setMessage(getString(R.string.error_spki_mismatch_message, serverName))
-            .setPositiveButton(R.string.error_spki_retrust) { _, _ ->
+        errorDialog.value = AppAlertDialogData(
+            title = R.string.error_spki_mismatch_title,
+            message = getString(R.string.error_spki_mismatch_message, serverName),
+            confirmLabel = R.string.error_spki_retrust,
+            onConfirm = {
                 // Re-trust: mark the server as no longer trusted so the user
                 // can re-add the current pin on the next connection.
                 config?.let {
                     settings.addServer(it.copy(isTrusted = false, spkiPin = null))
                     refresh()
                 }
-            }
-            .setNegativeButton(R.string.action_cancel, null)
-            .show()
+            },
+        )
     }
 
     private fun showServerUnavailableDialog(config: McpServerConfig?, reason: String) {
         val serverName = config?.name ?: "Unknown server"
-        androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle(R.string.error_server_unavailable_title)
-            .setMessage(getString(R.string.error_server_unavailable_message, serverName, reason))
-            .setPositiveButton(R.string.error_retry) { _, _ -> refresh() }
-            .setNegativeButton(R.string.action_cancel, null)
-            .show()
+        errorDialog.value = AppAlertDialogData(
+            title = R.string.error_server_unavailable_title,
+            message = getString(R.string.error_server_unavailable_message, serverName, reason),
+            confirmLabel = R.string.error_retry,
+            onConfirm = { refresh() },
+        )
     }
 
     private fun serverIdOf(probe: ServerProbe): String = when (probe) {

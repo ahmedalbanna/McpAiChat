@@ -13,7 +13,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.appcompat.app.AppCompatActivity
+import androidx.activity.ComponentActivity
 import androidx.compose.runtime.mutableStateOf
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
@@ -34,7 +34,7 @@ import kotlinx.coroutines.launch
  * Renders the streaming assistant answer, the grouped MCP tool calls and the
  * status banner, and owns the lifecycle of one conversation turn.
  */
-class MainActivity : AppCompatActivity() {
+class MainActivity : ComponentActivity() {
 
     private val viewModel by viewModels<ChatViewModel>()
     private val repo: ChatRepository get() = viewModel.repo
