@@ -74,6 +74,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _attachment = MutableStateFlow<ComposerAttachment?>(null)
     val attachment: StateFlow<ComposerAttachment?> = _attachment.asStateFlow()
 
+    /** The composer's current draft text. The view-model owns it so the voice
+     * path can append and rotation cannot lose it. */
+    private val _composerText = MutableStateFlow("")
+    val composerText: StateFlow<String> = _composerText.asStateFlow()
+
+    fun setComposerText(value: String) {
+        _composerText.value = value
+    }
+
     private var selectedAttachmentPath: String? = null
     private var selectedAttachmentName: String? = null
 

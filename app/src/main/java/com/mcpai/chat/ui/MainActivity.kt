@@ -2,87 +2,59 @@ package com.mcpai.chat.ui
 
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.content.res.ColorStateList
 import android.net.Uri
 import android.os.Bundle
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
-import android.text.Editable
-import android.text.TextWatcher
-import android.view.View
-import android.view.inputmethod.EditorInfo
-import android.widget.EditText
-import android.widget.ImageView
-import android.widget.ProgressBar
-import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AlertDialog
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.runtime.mutableStateOf
 import androidx.core.content.ContextCompat
-import androidx.core.content.res.ResourcesCompat
-import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.repeatOnLifecycle
-import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
-import com.google.android.material.appbar.MaterialToolbar
-import com.google.android.material.button.MaterialButton
 import com.mcpai.chat.BuildConfig
-import timber.log.Timber
 import com.mcpai.chat.R
-import com.mcpai.chat.data.ChatEvent
 import com.mcpai.chat.data.ChatRepository
 import com.mcpai.chat.data.Settings
 import com.mcpai.chat.data.StoredMessage
 import com.mcpai.chat.util.ChatError
 import com.mcpai.chat.util.ErrorClassifier
-import kotlinx.coroutines.flow.collectLatest
+import com.mcpai.chat.ui.theme.McpAiChatTheme
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
 /**
- * The conversation screen.
+ * The conversation screen (Compose).
  *
- * Renders the streaming assistant answer, the MCP tool cards and the status
- * banner, and owns the lifecycle of one conversation turn.
+ * Renders the streaming assistant answer, the grouped MCP tool calls and the
+ * status banner, and owns the lifecycle of one conversation turn.
  */
 class MainActivity : AppCompatActivity() {
 
     private val viewModel by viewModels<ChatViewModel>()
     private val repo: ChatRepository get() = viewModel.repo
-    private lateinit var adapter: ChatAdapter
-    private lateinit var list: RecyclerView
-    private lateinit var input: EditText
-    private lateinit var attachButton: MaterialButton
-    private lateinit var micButton: MaterialButton
-    private lateinit var sendButton: MaterialButton
-    private lateinit var attachmentPreview: View
-    private lateinit var attachmentStateIcon: ImageView
-    private lateinit var attachmentProgress: ProgressBar
-    private lateinit var attachmentName: TextView
-    private lateinit var clearAttachmentButton: MaterialButton
-    private lateinit var voicePreview: View
-    private lateinit var voiceTranscript: TextView
-    private lateinit var voiceStopButton: MaterialButton
-    private lateinit var statusBanner: TextView
-    private lateinit var emptyView: TextView
-
-    /** True while a turn is in flight; drives the send-button enabled state. */
-    private var sendingActive = false
 
     /** True while the microphone is streaming to the recognizer. */
-    private var voiceListeningActive = false
+    private val voiceListening = mutableStateOf(false)
+    private val voiceTranscript = mutableStateOf<String?>("")
+
+    /** Live "11 tools" style subtitle for the toolbar. */
+    private val toolsSubtitle = mutableStateOf("")
 
     /** Picks a document from the device (no runtime permissions needed). */
     private val pickFileLauncher =
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             if (uri != null) {
                 val displayName = uri.lastPathSegment?.substringAfterLast('/')?.let(Uri::decode)
-                viewModel.selectAttachment(uri.toString(), displayName?.takeUnless { it.isBlank() } ?: uri.toString())
+                viewModel.selectAttachment(
+                    uri.toString(),
+                    displayName?.takeUnless { it.isBlank() } ?: uri.toString(),
+                )
             }
         }
 
@@ -96,6 +68,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
 
         // If no MCP server is configured yet, send the user to add one first.
         val settings = Settings.get(applicationContext)
@@ -105,79 +78,28 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        setContentView(R.layout.activity_main)
-
         // Open a specific conversation if one was passed via intent extras.
         val intentConversationId = intent.getLongExtra("conversation_id", -1L)
-
-        val toolbar = findViewById<MaterialToolbar>(R.id.toolbar)
-        toolbar.setOnMenuItemClickListener { item ->
-            when (item.itemId) {
-                R.id.action_servers -> {
-                    startActivity(Intent(this, ServersActivity::class.java)); true
-                }
-
-                R.id.action_settings -> {
-                    startActivity(Intent(this, SettingsActivity::class.java)); true
-                }
-
-                R.id.action_new_chat -> {
-                    viewModel.newConversation(); true
-                }
-
-                R.id.action_clear_chat -> {
-                    viewModel.clearConversation(); true
-                }
-
-                R.id.action_share_conversation -> {
-                    shareConversation(); true
-                }
-
-                else -> false
-            }
-        }
-
-        adapter = ChatAdapter { groupId -> viewModel.toggleToolGroup(groupId) }
-        list = findViewById(R.id.messageList)
-        list.layoutManager = LinearLayoutManager(this).apply { stackFromEnd = true }
-        list.adapter = adapter
-
-        input = findViewById(R.id.inputField)
-        attachButton = findViewById(R.id.attachButton)
-        micButton = findViewById(R.id.micButton)
-        sendButton = findViewById(R.id.sendButton)
-        attachmentPreview = findViewById(R.id.attachmentPreview)
-        attachmentStateIcon = findViewById(R.id.attachmentStateIcon)
-        attachmentProgress = findViewById(R.id.attachmentProgress)
-        attachmentName = findViewById(R.id.attachmentName)
-        clearAttachmentButton = findViewById(R.id.clearAttachmentButton)
-        voicePreview = findViewById(R.id.voicePreview)
-        voiceTranscript = findViewById(R.id.voiceTranscript)
-        voiceStopButton = findViewById(R.id.voiceStopButton)
-        statusBanner = findViewById(R.id.statusBanner)
-        emptyView = findViewById(R.id.emptyView)
-
-        sendButton.setOnClickListener { send() }
-        attachButton.setOnClickListener { pickFileLauncher.launch(arrayOf("*/*")) }
-        clearAttachmentButton.setOnClickListener { viewModel.clearAttachment() }
-        micButton.setOnClickListener { toggleVoiceInput() }
-        voiceStopButton.setOnClickListener { stopVoiceInput() }
-        setVoiceControls(active = false)
-        input.setOnEditorActionListener { _, actionId, _ ->
-            if (actionId == EditorInfo.IME_ACTION_SEND && canSendMessage()) {
-                send(); true
-            } else {
-                false
-            }
-        }
-        input.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
-            override fun afterTextChanged(s: Editable?) = updateSendButton()
-        })
-        updateSendButton()
-
         applyDebugConfigFromIntent()
+
+        setContent {
+            McpAiChatTheme {
+                ChatScreen(
+                    viewModel = viewModel,
+                    toolsSubtitle = toolsSubtitle.value,
+                    voiceActive = voiceListening.value,
+                    voiceTranscript = voiceTranscript.value,
+                    onOpenServers = { startActivity(Intent(this, ServersActivity::class.java)) },
+                    onOpenSettings = { startActivity(Intent(this, SettingsActivity::class.java)) },
+                    onNewConversation = viewModel::newConversation,
+                    onClearConversation = viewModel::clearConversation,
+                    onShareConversation = ::shareConversation,
+                    onPickAttachment = { pickFileLauncher.launch(arrayOf("*/*")) },
+                    onVoiceToggle = ::toggleVoiceInput,
+                    onVoiceStop = ::stopVoiceInput,
+                )
+            }
+        }
 
         // The view-model owns openConversation() and the history load, so a
         // rotation does not re-open and the rows it already has stay put.
@@ -192,85 +114,27 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.displayedRows.collectLatest { rows ->
-                    // Keep the viewport pinned to the bottom only when it was
-                    // already there; otherwise every token — or a tool group the
-                    // user just expanded — would yank the scroll position.
-                    val atBottom = !list.canScrollVertically(1)
-                    adapter.submit(rows)
-                    emptyView.visibility = if (rows.isEmpty()) View.VISIBLE else View.GONE
-                    if (rows.isNotEmpty() && atBottom) list.scrollToPosition(rows.size - 1)
-                }
-            }
-        }
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.status.collect { message ->
-                    if (message == null) {
-                        statusBanner.visibility = View.GONE
-                    } else {
-                        statusBanner.text = message
-                        statusBanner.visibility = View.VISIBLE
-                    }
-                }
-            }
-        }
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.approval.collect { request ->
-                    if (request != null) askToolApproval(request)
-                }
-            }
-        }
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.attachment.collect(::renderAttachmentState)
-            }
-        }
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.sending.collect { sending ->
-                    sendingActive = sending
-                    updateSendButton()
-                }
-            }
-        }
-
         // Show how many MCP tools are live, so a silent model is easy to diagnose.
-        // Both flows are watched: a server exposing no tools never changes the
-        // tool list, so watching tools alone could not tell "still connecting"
-        // from "connected but empty".
         lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                combine(repo.tools, repo.serverProbes) { tools, probes -> tools to probes }
-                    .collect { (tools, probes) ->
-                        val toolbar = findViewById<MaterialToolbar>(R.id.toolbar)
-                        toolbar.subtitle = when {
-                            repo.settings.servers().none { it.enabled } ->
-                                getString(R.string.no_servers_enabled)
+            combine(repo.tools, repo.serverProbes) { tools, probes -> tools to probes }
+                .collect { (tools, probes) ->
+                    toolsSubtitle.value = when {
+                        repo.settings.servers().none { it.enabled } ->
+                            getString(R.string.no_servers_enabled)
 
-                            tools.isNotEmpty() ->
-                                resources.getQuantityString(R.plurals.tools_connected, tools.size, tools.size)
+                        tools.isNotEmpty() ->
+                            resources.getQuantityString(R.plurals.tools_connected, tools.size, tools.size)
 
-                            probes.isNotEmpty() -> getString(R.string.no_tools_connected)
-                            else -> getString(R.string.connecting_servers)
-                        }
+                        probes.isNotEmpty() -> getString(R.string.no_tools_connected)
+                        else -> getString(R.string.connecting_servers)
                     }
-            }
+                }
         }
     }
 
     /**
      * Debug-only launcher configuration, so a device can be pointed at a local
      * server and provider without tapping through the settings screens.
-     *
-     * ```
-     * adb shell am start -n com.mcpai.chat/.ui.MainActivity \
-     *   --es api_key sk-... --es base_url http://192.168.8.21:8098/v1 \
-     *   --es model mock-model --es mcp_url http://192.168.8.21:8099/mcp
-     * ```
      */
     private fun applyDebugConfigFromIntent() {
         if (!BuildConfig.DEBUG) return
@@ -294,214 +158,45 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun canSendMessage(): Boolean =
-        !sendingActive && !voiceListeningActive && !input.text.isNullOrBlank()
-
-    private fun updateSendButton() {
-        if (!::sendButton.isInitialized) return
-        sendButton.isEnabled = canSendMessage()
-    }
-
-    /** Paints the selected or in-flight attachment without owning its lifecycle. */
-    private fun renderAttachmentState(attachment: ComposerAttachment?) {
-        if (!::attachmentPreview.isInitialized) return
-
-        if (attachment == null) {
-            attachmentPreview.visibility = View.GONE
-            attachmentName.text = ""
-            attachmentStateIcon.visibility = View.VISIBLE
-            attachmentProgress.visibility = View.GONE
-            clearAttachmentButton.isEnabled = true
-            return
-        }
-
-        attachmentPreview.visibility = View.VISIBLE
-        emptyView.visibility = View.GONE
-        attachmentName.text = if (attachment.sending) {
-            getString(R.string.sending_attachment, attachment.name)
-        } else {
-            attachment.name
-        }
-        attachmentStateIcon.visibility = if (attachment.sending) View.GONE else View.VISIBLE
-        attachmentProgress.visibility = if (attachment.sending) View.VISIBLE else View.GONE
-        clearAttachmentButton.isEnabled = !attachment.sending
-        clearAttachmentButton.visibility = if (attachment.sending) View.GONE else View.VISIBLE
-    }
-
-    /** Sets the microphone and recording panel to idle/listening appearance. */
-    private fun setVoiceControls(active: Boolean) {
-        if (!::micButton.isInitialized) return
-
-        voiceListeningActive = active
-        voicePreview.visibility = if (active) View.VISIBLE else View.GONE
-        if (active) {
-            voiceTranscript.text = getString(R.string.voice_speak_now)
-        }
-        micButton.setIconResource(if (active) R.drawable.ic_stop else R.drawable.ic_mic)
-        micButton.backgroundTintList = ColorStateList.valueOf(
-            ContextCompat.getColor(this, if (active) R.color.composer_voice_bg else R.color.composer_icon_bg),
-        )
-        micButton.setIconTint(
-            ColorStateList.valueOf(
-                ContextCompat.getColor(this, if (active) R.color.composer_voice_on else R.color.composer_icon_fg),
-            ),
-        )
-        micButton.contentDescription = getString(if (active) R.string.action_stop_voice_input else R.string.action_voice_input)
-        updateSendButton()
-    }
-
     private fun toggleVoiceInput() {
-        if (voiceListeningActive) {
+        if (voiceListening.value) {
             stopVoiceInput()
             return
         }
-        if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+        if (
+            ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
             recordAudioLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
             return
         }
         startListening()
     }
 
-    private fun stopVoiceInput() {
-        val recognizer = speechRecognizer ?: return
-        voiceTranscript.text = getString(R.string.voice_finalizing)
-        recognizer.stopListening()
-    }
-
-    /** Ends dictation and restores the normal composer state. */
-    private fun finishVoiceInput() {
-        speechRecognizer?.cancel()
-        speechRecognizer = null
-        setVoiceControls(active = false)
-    }
-
-    private fun send() {
-        val text = input.text?.toString()?.trim().orEmpty()
-        if (!canSendMessage() || text.isEmpty()) return
-        input.setText("")
-        emptyView.visibility = View.GONE
-
-        viewModel.send(text)
-    }
-
-    /** The one active approval dialog, so a second request cannot stack on top. */
-    private var approvalDialog: AlertDialog? = null
-
     /**
-     * Asks the user whether the model's tool call may run.
-     *
-     * The turn is suspended on the repository side until the user answers, so
-     * this is the single point where a third-party MCP server gets executed.
+     * Starts dictation and keeps it live until the user stops or recognition
+     * ends. Recognized speech is handed to the composer as a spoken suffix;
+     * the caller pastes it through the IME-side state.
      */
-    private fun askToolApproval(request: ChatEvent.ToolApprovalRequested) {
-        if (approvalDialog?.isShowing == true) {
-            Timber.tag("Mcp.Approval").w("dialog already open; dropping duplicate approval for %s", request.name)
-            return
-        }
-        Timber.tag("Mcp.Approval").d("building dialog: tool=%s server=%s", request.name, request.serverName)
-
-        val dialogView = layoutInflater.inflate(R.layout.dialog_tool_approval, null)
-        dialogView.findViewById<TextView>(R.id.approvalToolName).text = request.name
-        dialogView.findViewById<TextView>(R.id.approvalServer).text = request.serverName
-        dialogView.findViewById<TextView>(R.id.approvalArgs).text = approvalArgsText(request.args)
-        dialogView.findViewById<TextView>(R.id.approvalTrustLabel).text =
-            getString(R.string.approval_trust_session_label, request.serverName)
-        dialogView.findViewById<TextView>(R.id.approvalAutoLabel).text =
-            getString(R.string.approval_always_allow_label, request.name)
-
-        val trustSwitch = dialogView.findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.approvalTrustSwitch)
-        val autoSwitch = dialogView.findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.approvalAutoSwitch)
-
-        val dialog = AlertDialog.Builder(this)
-            // Title and message live inside the inflated view so the layout can
-            // use the icon, tool identity card and bounded arguments block.
-            .setView(dialogView)
-            .setCancelable(false)
-            .setPositiveButton(R.string.tool_approval_allow) { _, _ ->
-                viewModel.approve(request, approved = true, trust = trustSwitch.isChecked, autoApprove = autoSwitch.isChecked)
-            }
-            .setNegativeButton(R.string.tool_approval_deny) { _, _ ->
-                viewModel.approve(request, approved = false, trust = false, autoApprove = false)
-            }
-            .setOnCancelListener {
-                // Dismissing the dialog is a denial, never an approval.
-                viewModel.approve(request, approved = false, trust = false, autoApprove = false)
-            }
-            .create()
-
-        dialog.setOnShowListener {
-            dialog.getButton(AlertDialog.BUTTON_NEGATIVE)?.setTextColor(
-                androidx.core.content.ContextCompat.getColor(this, R.color.tool_accent),
-            )
-        }
-
-        approvalDialog = dialog
-        dialog.show()
-        Timber.tag("Mcp.Approval").d("dialog shown: tool=%s", request.name)
-    }
-
-    /** Pretty-prints tool arguments, bounded so huge payloads stay readable and cheap. */
-    private fun approvalArgsText(raw: String): String {
-        val pretty = prettyArgs(raw)
-        return if (pretty.length > 4000) pretty.take(4000) + "\n…" else pretty
-    }
-
-    private fun prettyArgs(raw: String): String = runCatching {
-        org.json.JSONObject(raw).toString(2)
-    }.getOrDefault(raw)
-
-    /** Shows a specific error dialog based on the exception type (T-07). */
-    private fun showErrorDialog(exception: Throwable, serverName: String) {
-        val error = ErrorClassifier.classify(exception, serverName)
-        when (error) {
-            is ChatError.SpkiMismatch -> {
-                AlertDialog.Builder(this)
-                    .setTitle(R.string.error_spki_mismatch_title)
-                    .setMessage(getString(R.string.error_spki_mismatch_message, serverName.ifBlank { "Server" }))
-                    .setPositiveButton(R.string.error_spki_retrust) { _, _ ->
-                        // Re-trust: mark as untrusted so user can re-add trust.
-                        // The actual re-extraction happens on next connection attempt.
-                    }
-                    .setNegativeButton(R.string.action_cancel, null)
-                    .show()
-            }
-            is ChatError.ServerUnavailable -> {
-                AlertDialog.Builder(this)
-                    .setTitle(R.string.error_server_unavailable_title)
-                    .setMessage(getString(R.string.error_server_unavailable_message, serverName.ifBlank { "Server" }, error.message))
-                    .setPositiveButton(R.string.error_retry) { _, _ ->
-                        lifecycleScope.launch {
-                            try { repo.refreshServers() } catch (_: Exception) {}
-                        }
-                    }
-                    .setNegativeButton(R.string.action_cancel, null)
-                    .show()
-            }
-            is ChatError.Unknown -> {
-                Toast.makeText(this, error.message, Toast.LENGTH_LONG).show()
-            }
-        }
-    }
-
-    /** Starts dictation and keeps it live until the user stops or recognition ends. */
     private fun startListening() {
         speechRecognizer?.cancel()
         speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
-        setVoiceControls(active = true)
+        voiceListening.value = true
+        voiceTranscript.value = getString(R.string.voice_speak_now)
         speechRecognizer?.setRecognitionListener(object : RecognitionListener {
             override fun onReadyForSpeech(params: Bundle) {
-                voiceTranscript.text = getString(R.string.voice_speak_now)
+                voiceTranscript.value = getString(R.string.voice_speak_now)
             }
 
             override fun onBeginningOfSpeech() {
-                voiceTranscript.text = getString(R.string.voice_speak_now)
+                voiceTranscript.value = getString(R.string.voice_speak_now)
             }
 
             override fun onRmsChanged(rmsdB: Float) {}
             override fun onBufferReceived(buffer: ByteArray) {}
 
             override fun onEndOfSpeech() {
-                voiceTranscript.text = getString(R.string.voice_finalizing)
+                voiceTranscript.value = getString(R.string.voice_finalizing)
             }
 
             override fun onError(error: Int) {
@@ -513,17 +208,16 @@ class MainActivity : AppCompatActivity() {
                 val matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION) ?: emptyList()
                 if (matches.isNotEmpty()) {
                     val spoken = matches[0]
-                    val current = input.text.toString().trim()
-                    input.setText(if (current.isNotEmpty()) "$current $spoken" else spoken)
-                    input.setSelection(input.text.length)
+                    // Append to whatever the composer already holds.
+                    appendSpokenText(spoken)
                 }
                 finishVoiceInput()
             }
 
             override fun onPartialResults(results: Bundle) {
                 val partial = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
-                if (!partial.isNullOrBlank() && voiceListeningActive) {
-                    voiceTranscript.text = partial
+                if (!partial.isNullOrBlank() && voiceListening.value) {
+                    voiceTranscript.value = partial
                 }
             }
 
@@ -535,6 +229,25 @@ class MainActivity : AppCompatActivity() {
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
         }
         speechRecognizer?.startListening(intent)
+    }
+
+    private fun stopVoiceInput() {
+        val recognizer = speechRecognizer ?: return
+        voiceTranscript.value = getString(R.string.voice_finalizing)
+        recognizer.stopListening()
+    }
+
+    /** Ends dictation and restores the normal composer state. */
+    private fun finishVoiceInput() {
+        speechRecognizer?.cancel()
+        speechRecognizer = null
+        voiceListening.value = false
+    }
+
+    /** Appends the spoken suffix to the composer draft. */
+    private fun appendSpokenText(spoken: String) {
+        val current = viewModel.composerText.value.orEmpty().trim()
+        viewModel.setComposerText(if (current.isNotEmpty()) "$current $spoken" else spoken)
     }
 
     /** Exports the current conversation as Markdown and shares it via the Android share sheet. */
@@ -590,20 +303,17 @@ class MainActivity : AppCompatActivity() {
         // announces a banner the user cannot see.
         speechRecognizer?.cancel()
         speechRecognizer = null
-        setVoiceControls(active = false)
+        voiceListening.value = false
         super.onPause()
     }
 
     override fun onDestroy() {
-        approvalDialog?.dismiss()
-        approvalDialog = null
+        // The approval dialog and the turn job are owned by the composer and
+        // the view-model respectively; both survive this activity being
+        // destroyed. The repository is owned by ChatApplication for the whole
+        // process.
         speechRecognizer?.cancel()
         speechRecognizer = null
-        // The turn job lives in ChatViewModel, so it survives this activity
-        // being destroyed. The repository is owned by ChatApplication for the
-        // whole process; closing it here would close the database under the
-        // coroutine that is writing the partial answer, and would discard every
-        // MCP session.
         super.onDestroy()
     }
 }
