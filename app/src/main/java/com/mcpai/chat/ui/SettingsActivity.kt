@@ -2,20 +2,16 @@ package com.mcpai.chat.ui
 
 import android.content.Intent
 import android.os.Bundle
-import android.widget.ArrayAdapter
-import android.widget.EditText
-import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.lifecycleScope
-import com.google.android.material.button.MaterialButton
-import com.google.android.material.materialswitch.MaterialSwitch
-import com.google.android.material.slider.Slider
-import com.google.android.material.textfield.MaterialAutoCompleteTextView
-import com.google.android.material.appbar.MaterialToolbar
 import com.mcpai.chat.R
 import com.mcpai.chat.data.Settings
 import com.mcpai.chat.llm.OpenAiProvider
+import com.mcpai.chat.ui.theme.McpAiChatTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -29,101 +25,82 @@ import kotlinx.coroutines.withContext
 class SettingsActivity : AppCompatActivity() {
 
     private lateinit var settings: Settings
+    private val form = mutableStateOf(ProviderForm())
+    private val models = mutableStateOf(listOf<String>())
+    private val loadingModels = mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_settings)
+        enableEdgeToEdge()
         settings = Settings.get(applicationContext)
-        findViewById<MaterialToolbar>(R.id.settingsToolbar).setNavigationOnClickListener { finish() }
 
-        val apiKeyField = findViewById<EditText>(R.id.apiKeyField)
-        val baseUrlField = findViewById<EditText>(R.id.baseUrlField)
-        val modelField = findViewById<MaterialAutoCompleteTextView>(R.id.modelField)
-        val systemPromptField = findViewById<EditText>(R.id.systemPromptField)
-        val temperatureSlider = findViewById<Slider>(R.id.temperatureSlider)
-        val toolsSwitch = findViewById<MaterialSwitch>(R.id.toolsSwitch)
-
-        apiKeyField.setText(settings.openAiApiKey)
-        baseUrlField.setText(settings.openAiBaseUrl)
-        modelField.setText(settings.model, false)
-        systemPromptField.setText(settings.systemPrompt)
-        temperatureSlider.value = settings.temperature.coerceIn(0f, 2f)
-        toolsSwitch.isChecked = settings.toolsEnabled
-        findViewById<MaterialSwitch>(R.id.confirmToolsSwitch).apply {
-            isChecked = settings.confirmToolCalls
-        }
-
-        val historySlider = findViewById<Slider>(R.id.historySlider)
-        val historyLabel = findViewById<TextView>(R.id.historyLabel)
-        // The slider steps in whole values; snap to the stored limit so the label
-        // and the value agree even if the setting was never touched.
-        historySlider.value = settings.historyLimit.toFloat()
-        historyLabel.text = getString(R.string.label_history, settings.historyLimit)
-        historySlider.addOnChangeListener { _, value, _ ->
-            historyLabel.text = getString(R.string.label_history, value.toInt())
-        }
-
+        form.value = ProviderForm(
+            apiKey = settings.openAiApiKey,
+            baseUrl = settings.openAiBaseUrl,
+            model = settings.model,
+            systemPrompt = settings.systemPrompt,
+            temperature = settings.temperature.coerceIn(0f, 2f),
+            toolsEnabled = settings.toolsEnabled,
+            confirmToolCalls = settings.confirmToolCalls,
+            historyLimit = settings.historyLimit,
+        )
         // Seed the dropdown with the current model so it is usable before the
         // provider list arrives.
-        modelField.setAdapter(
-            ArrayAdapter(this, android.R.layout.simple_list_item_1, listOf(settings.model)),
-        )
+        models.value = listOf(settings.model).filter { it.isNotBlank() }
 
-        findViewById<MaterialButton>(R.id.saveButton).setOnClickListener {
-            settings.openAiApiKey = apiKeyField.text.toString()
-            settings.openAiBaseUrl = baseUrlField.text.toString()
-            settings.model = modelField.text.toString()
-            settings.systemPrompt = systemPromptField.text.toString()
-            settings.temperature = temperatureSlider.value
-            settings.toolsEnabled = toolsSwitch.isChecked
-            settings.confirmToolCalls =
-                findViewById<MaterialSwitch>(R.id.confirmToolsSwitch).isChecked
-            settings.historyLimit = historySlider.value.toInt()
-            finish()
-        }
-
-        findViewById<MaterialButton>(R.id.refreshModelsButton).setOnClickListener {
-            loadModels(baseUrlField.text.toString(), apiKeyField.text.toString(), modelField)
-        }
-
-        findViewById<MaterialButton>(R.id.manageToolsButton).setOnClickListener {
-            startActivity(Intent(this, ToolDetailActivity::class.java))
+        setContent {
+            McpAiChatTheme {
+                SettingsScreen(
+                    form = form.value,
+                    models = models.value,
+                    loadingModels = loadingModels.value,
+                    onFormChange = { form.value = it },
+                    onRefreshModels = ::loadModels,
+                    onOpenToolDetail = {
+                        startActivity(Intent(this, ToolDetailActivity::class.java))
+                    },
+                    onBack = ::finish,
+                    onSave = {
+                        val current = form.value
+                        settings.openAiApiKey = current.apiKey
+                        settings.openAiBaseUrl = current.baseUrl
+                        settings.model = current.model
+                        settings.systemPrompt = current.systemPrompt
+                        settings.temperature = current.temperature
+                        settings.toolsEnabled = current.toolsEnabled
+                        settings.confirmToolCalls = current.confirmToolCalls
+                        settings.historyLimit = current.historyLimit
+                        finish()
+                    },
+                )
+            }
         }
     }
 
-    private fun loadModels(baseUrl: String, apiKey: String, target: MaterialAutoCompleteTextView) {
-        if (baseUrl.isBlank()) {
+    private fun loadModels() {
+        val current = form.value
+        if (current.baseUrl.isBlank()) {
             Toast.makeText(this, R.string.label_base_url, Toast.LENGTH_SHORT).show()
             return
         }
-        val button = findViewById<MaterialButton>(R.id.refreshModelsButton)
-        button.isEnabled = false
+        if (loadingModels.value) return
+        loadingModels.value = true
         lifecycleScope.launch {
-            val models = withContext(Dispatchers.IO) {
-                OpenAiProvider(baseUrl, apiKey, "").listModels()
+            val loaded = withContext(Dispatchers.IO) {
+                OpenAiProvider(current.baseUrl, current.apiKey, "").listModels()
             }
-            button.isEnabled = true
-            if (models.isEmpty()) {
-                Toast.makeText(
-                    this@SettingsActivity,
-                    R.string.no_models_found,
-                    Toast.LENGTH_SHORT,
-                ).show()
+            loadingModels.value = false
+            if (loaded.isEmpty()) {
+                Toast.makeText(this@SettingsActivity, R.string.no_models_found, Toast.LENGTH_SHORT).show()
                 return@launch
             }
-            target.setAdapter(
-                ArrayAdapter(
-                    this@SettingsActivity,
-                    android.R.layout.simple_list_item_1,
-                    models,
-                ),
-            )
-            if (!models.contains(settings.model)) {
-                target.setText(models.first(), false)
+            models.value = loaded
+            if (current.model !in loaded) {
+                form.value = current.copy(model = loaded.first())
             }
             Toast.makeText(
                 this@SettingsActivity,
-                getString(R.string.models_loaded, models.size),
+                getString(R.string.models_loaded, loaded.size),
                 Toast.LENGTH_SHORT,
             ).show()
         }
