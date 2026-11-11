@@ -76,6 +76,11 @@ class ChatEngine(
         var lastError: String? = null
         var assistantToolCallsJson: String? = null
 
+        // Tools the user declined during this turn. A model that keeps asking
+        // for a declined tool would otherwise loop the approval dialog; after
+        // the first decline the answer is fixed for the rest of the turn.
+        val declinedTools = DeclinedToolGuard()
+
         repeat(maxToolIterations) { iteration ->
             val assistantText = StringBuilder()
             val pending = linkedMapOf<Int, ToolCall>()
@@ -150,16 +155,31 @@ class ChatEngine(
             for (call in calls) {
                 val uiEvent = ToolCallEvent(call.id, call.name, call.argumentsJson)
                 onToolCall(uiEvent)
-                onStatus("Waiting for approval to run ${call.name}…")
 
                 var text: String
                 var outcome: ToolOutcome
+
+                if (declinedTools.shouldSkip(call.name)) {
+                    text = "The user already declined to run this tool earlier in this turn."
+                    outcome = ToolOutcome.Declined
+                    onToolResult(uiEvent, text, outcome)
+                    executedTools += uiEvent
+                    messages += ChatMessage(
+                        role = "tool",
+                        content = text,
+                        toolCallId = call.id,
+                    )
+                    continue
+                }
+
+                onStatus("Waiting for approval to run ${call.name}…")
 
                 if (!onToolApproval(uiEvent)) {
                     // The model still needs a `tool` message with this id, and it needs
                     // to know the call did not happen so it does not assume a result.
                     text = "The user declined to run this tool."
                     outcome = ToolOutcome.Declined
+                    declinedTools.recordDecline(call.name)
                 } else {
                     onStatus("Calling ${call.name}…")
                     val result = runCatching { registry.callTool(call.name, call.parsedArguments()) }
