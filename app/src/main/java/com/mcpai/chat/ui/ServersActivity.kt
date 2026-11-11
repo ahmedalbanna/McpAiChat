@@ -2,19 +2,13 @@ package com.mcpai.chat.ui
 
 import android.content.Intent
 import android.os.Bundle
-import android.view.View
-import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.lifecycleScope
-import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
-import com.google.android.material.appbar.MaterialToolbar
-import com.google.android.material.button.MaterialButton
-import com.google.android.material.materialswitch.MaterialSwitch
-import androidx.core.content.ContextCompat
 import com.mcpai.chat.R
 import com.mcpai.chat.data.ChatRepository
 import com.mcpai.chat.data.Settings
@@ -24,19 +18,18 @@ import com.mcpai.chat.util.ErrorClassifier
 import com.mcpai.chat.mcp.HttpMcpTransport
 import com.mcpai.chat.mcp.McpServerConfig
 import com.mcpai.chat.mcp.ServerProbe
+import com.mcpai.chat.ui.theme.McpAiChatTheme
 import kotlinx.coroutines.launch
 import java.util.UUID
 
 /**
  * Manages the MCP servers the app talks to and shows the tools each of them
- * advertises.
+ * advertises (Compose).
  */
 class ServersActivity : AppCompatActivity() {
 
     private lateinit var settings: Settings
-    private lateinit var adapter: ServerAdapter
-    private lateinit var emptyView: TextView
-    private lateinit var serversSummary: TextView
+    private val state = mutableStateOf(ServerRows(emptyList(), loading = true))
 
     /**
      * Receives a server picked from the free-server catalogue and saves it.
@@ -70,44 +63,34 @@ class ServersActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_servers)
+        enableEdgeToEdge()
         settings = Settings.get(applicationContext)
-
-        val toolbar = findViewById<MaterialToolbar>(R.id.toolbar)
-        toolbar.setNavigationOnClickListener { finish() }
-
-        adapter = ServerAdapter(
-            onToggle = { config, enabled ->
-                settings.addServer(config.copy(enabled = enabled))
-                refresh()
-            },
-            onClick = { config ->
-                settings.activeServerId = config.id
-                startActivity(ServerEditActivity.intent(this, config))
-            },
-        )
-
-        findViewById<RecyclerView>(R.id.serverList).apply {
-            layoutManager = LinearLayoutManager(this@ServersActivity)
-            adapter = this@ServersActivity.adapter
-        }
-        emptyView = findViewById(R.id.emptyView)
-        serversSummary = findViewById(R.id.serversSummary)
-
-        findViewById<MaterialButton>(R.id.addButton).setOnClickListener {
-            startActivity(ServerEditActivity.intent(this, null))
-        }
-
-        findViewById<MaterialButton>(R.id.catalogButton).setOnClickListener {
-            catalogLauncher.launch(Intent(this, CatalogActivity::class.java))
-        }
-
-        findViewById<MaterialButton>(R.id.exportButton).setOnClickListener {
-            exportSettings()
-        }
-
-        findViewById<MaterialButton>(R.id.importButton).setOnClickListener {
-            importLauncher.launch(arrayOf("application/json", "text/plain"))
+        setContent {
+            McpAiChatTheme {
+                ServersScreen(
+                    rows = state.value.rows,
+                    loading = state.value.loading,
+                    onToggle = { config, enabled ->
+                        settings.addServer(config.copy(enabled = enabled))
+                        refresh()
+                    },
+                    onOpenServer = { config ->
+                        settings.activeServerId = config.id
+                        startActivity(ServerEditActivity.intent(this, config))
+                    },
+                    onAddServer = {
+                        startActivity(ServerEditActivity.intent(this, null))
+                    },
+                    onOpenCatalog = {
+                        catalogLauncher.launch(Intent(this, CatalogActivity::class.java))
+                    },
+                    onExport = ::exportSettings,
+                    onImport = {
+                        importLauncher.launch(arrayOf("application/json", "text/plain"))
+                    },
+                    onBack = ::finish,
+                )
+            }
         }
     }
 
@@ -115,6 +98,8 @@ class ServersActivity : AppCompatActivity() {
         super.onResume()
         refresh()
     }
+
+    private data class ServerRows(val rows: List<ServerRow>, val loading: Boolean)
 
     private fun exportSettings() {
         val exporter = SettingsExporter()
@@ -130,7 +115,8 @@ class ServersActivity : AppCompatActivity() {
     private fun importSettings(uri: android.net.Uri) {
         lifecycleScope.launch {
             try {
-                val json = contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: return@launch
+                val json = contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+                    ?: return@launch
                 val exporter = SettingsExporter()
                 val imported = exporter.import(json)
                 for (config in imported) {
@@ -144,23 +130,6 @@ class ServersActivity : AppCompatActivity() {
         }
     }
 
-    /** Refresh the trust/capability line in the intro card. */
-    private fun updateSummary(configs: List<McpServerConfig>, probes: Map<String, ServerProbe>) {
-        if (configs.isEmpty()) {
-            serversSummary.visibility = View.GONE
-            return
-        }
-        serversSummary.visibility = View.VISIBLE
-        val enabled = configs.count { it.enabled }
-        val toolCount = probes.values.filterIsInstance<ServerProbe.Ok>().sumOf { it.toolCount }
-        val failures = probes.values.count { it is ServerProbe.Failed }
-        serversSummary.text = if (failures == 0) {
-            getString(R.string.servers_summary, configs.size, enabled, toolCount)
-        } else {
-            getString(R.string.servers_summary_failures, configs.size, enabled, toolCount, failures)
-        }
-    }
-
     private fun refresh() {
         lifecycleScope.launch {
             val repo = ChatRepository.get(applicationContext)
@@ -168,9 +137,10 @@ class ServersActivity : AppCompatActivity() {
             try {
                 val probes = repo.refreshServers(configs)
                 val probeMap = probes.associateBy { serverIdOf(it) }
-                adapter.submit(configs, probeMap)
-                emptyView.visibility = if (configs.isEmpty()) View.VISIBLE else View.GONE
-                updateSummary(configs, probeMap)
+                state.value = ServerRows(
+                    rows = configs.map { ServerRow(it, probeMap[it.id]) },
+                    loading = false,
+                )
 
                 // Show specific error dialogs for failed probes (T-07).
                 for (probe in probes) {
@@ -179,13 +149,19 @@ class ServersActivity : AppCompatActivity() {
                         val reason = probe.reason
                         if (reason.contains("SPKI pin mismatch", ignoreCase = true)) {
                             showSpkiMismatchDialog(config, reason)
-                        } else if (reason.contains("Cannot reach", ignoreCase = true) ||
-                            reason.contains("Failed to connect", ignoreCase = true)) {
+                        } else if (
+                            reason.contains("Cannot reach", ignoreCase = true) ||
+                            reason.contains("Failed to connect", ignoreCase = true)
+                        ) {
                             showServerUnavailableDialog(config, reason)
                         }
                     }
                 }
             } catch (e: Exception) {
+                state.value = ServerRows(
+                    rows = configs.map { ServerRow(it, null) },
+                    loading = false,
+                )
                 val error = ErrorClassifier.classify(e)
                 when (error) {
                     is ChatError.SpkiMismatch -> showSpkiMismatchDialog(null, error.current)
@@ -198,14 +174,12 @@ class ServersActivity : AppCompatActivity() {
 
     private fun showSpkiMismatchDialog(config: McpServerConfig?, reason: String) {
         val serverName = config?.name ?: "Unknown server"
-        AlertDialog.Builder(this)
+        androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle(R.string.error_spki_mismatch_title)
             .setMessage(getString(R.string.error_spki_mismatch_message, serverName))
             .setPositiveButton(R.string.error_spki_retrust) { _, _ ->
-                // Re-trust: update the SPKI pin to the current value.
-                // The current pin is in the exception; for probe failures we
-                // re-extract from the server. For now, mark as untrusted so
-                // the user can re-add trust manually.
+                // Re-trust: mark the server as no longer trusted so the user
+                // can re-add the current pin on the next connection.
                 config?.let {
                     settings.addServer(it.copy(isTrusted = false, spkiPin = null))
                     refresh()
@@ -217,7 +191,7 @@ class ServersActivity : AppCompatActivity() {
 
     private fun showServerUnavailableDialog(config: McpServerConfig?, reason: String) {
         val serverName = config?.name ?: "Unknown server"
-        AlertDialog.Builder(this)
+        androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle(R.string.error_server_unavailable_title)
             .setMessage(getString(R.string.error_server_unavailable_message, serverName, reason))
             .setPositiveButton(R.string.error_retry) { _, _ -> refresh() }
@@ -228,72 +202,5 @@ class ServersActivity : AppCompatActivity() {
     private fun serverIdOf(probe: ServerProbe): String = when (probe) {
         is ServerProbe.Ok -> probe.serverId
         is ServerProbe.Failed -> probe.serverId
-    }
-}
-
-/** RecyclerView adapter for the server list. */
-class ServerAdapter(
-    private val onToggle: (McpServerConfig, Boolean) -> Unit,
-    private val onClick: (McpServerConfig) -> Unit,
-) : RecyclerView.Adapter<ServerAdapter.Holder>() {
-
-    private var configs: List<McpServerConfig> = emptyList()
-    private var probes: Map<String, ServerProbe> = emptyMap()
-
-    fun submit(configs: List<McpServerConfig>, probes: Map<String, ServerProbe>) {
-        this.configs = configs
-        this.probes = probes
-        notifyDataSetChanged()
-    }
-
-    override fun getItemCount(): Int = configs.size
-
-    override fun onCreateViewHolder(parent: android.view.ViewGroup, viewType: Int): Holder {
-        val view = android.view.LayoutInflater.from(parent.context)
-            .inflate(R.layout.item_server, parent, false)
-        return Holder(view)
-    }
-
-    override fun onBindViewHolder(holder: Holder, position: Int) {
-        val config = configs[position]
-        holder.name.text = config.name
-        holder.url.text = config.url
-        holder.enabled.setOnCheckedChangeListener(null)
-        holder.enabled.isChecked = config.enabled
-        holder.enabled.setOnCheckedChangeListener { _, checked -> onToggle(config, checked) }
-        holder.itemView.setOnClickListener { onClick(config) }
-        holder.trustedBadge.visibility = if (config.isTrusted) View.VISIBLE else View.GONE
-        when (val probe = probes[config.id]) {
-            is ServerProbe.Ok -> {
-                holder.status.text = holder.itemView.context.getString(R.string.status_connected, probe.toolCount)
-                bindStatus(holder, R.drawable.status_ok, R.color.tool_ok)
-            }
-
-            is ServerProbe.Failed -> {
-                holder.status.text = "${holder.itemView.context.getString(R.string.status_failed)}: ${probe.reason.take(72)}"
-                bindStatus(holder, R.drawable.status_failed, R.color.tool_accent)
-            }
-
-            null -> {
-                holder.status.text = holder.itemView.context.getString(R.string.status_untested)
-                bindStatus(holder, R.drawable.status_idle, R.color.status_idle)
-            }
-        }
-    }
-
-    private fun bindStatus(holder: Holder, dotResource: Int, colorResource: Int) {
-        holder.statusDot.setBackgroundResource(dotResource)
-        holder.status.setTextColor(
-            ContextCompat.getColor(holder.itemView.context, colorResource),
-        )
-    }
-
-    class Holder(view: android.view.View) : RecyclerView.ViewHolder(view) {
-        val name: TextView = view.findViewById(R.id.serverName)
-        val url: TextView = view.findViewById(R.id.serverUrl)
-        val status: TextView = view.findViewById(R.id.serverStatus)
-        val statusDot: android.view.View = view.findViewById(R.id.statusDot)
-        val enabled: MaterialSwitch = view.findViewById(R.id.enabledSwitch)
-        val trustedBadge: TextView = view.findViewById(R.id.trustedBadge)
     }
 }
