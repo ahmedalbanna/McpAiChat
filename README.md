@@ -70,14 +70,15 @@ app/src/main/java/com/mcpai/chat/
 │   ├── Io.kt          file helpers
 │   └── Json.kt        org.json helpers
 └── ui/
-    ├── MainActivity.kt          chat screen + tool-approval dialog
-    ├── ChatAdapter.kt           user / assistant / tool rows
-    ├── ConversationListActivity.kt conversation list (launcher)
-    ├── ServersActivity.kt       MCP server management
-    ├── CatalogActivity.kt       free-server catalogue
-    ├── ServerEditActivity.kt    add / edit one server
-    ├── SettingsActivity.kt      provider, history and tool settings
-    └── ToolDetailActivity.kt    tool catalogue + auto-approve toggles
+    ├── MainActivity.kt              chat screen (Compose)
+    ├── ChatScreen.kt / ChatRows.kt Compose rows, bubbles and tool-group list
+    ├── ToolApprovalDialog.kt        Material 3 approval dialog
+    ├── ConversationListActivity.kt   conversation list (launcher)
+    ├── ServersActivity.kt            MCP server management
+    ├── CatalogActivity.kt            free-server catalogue
+    ├── ServerEditActivity.kt         add / edit one server
+    ├── SettingsActivity.kt           provider, history and tool settings
+    └── ToolDetailActivity.kt         tool catalogue + auto-approve toggles
 ```
 
 ---

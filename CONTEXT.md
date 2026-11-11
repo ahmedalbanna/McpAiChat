@@ -38,7 +38,7 @@ Two constraints shaped every decision:
 | Capped replay history (default 40, adjustable 4–120)                   | Implemented + unit tested; the slider not exercised on device                                                                                                                                             |
 | Catalogue of 33 keyless public MCP servers                             | **Verified on device** — entries connect and answer                                                                                                                                                       |
 
-Test suite: **160 unit tests across 14 classes + 13 instrumentation tests on the device, 0 failures**. The pre-commit hook runs typecheck + unit tests on every commit; `gradle app:connectedDebugAndroidTest` runs the device tests.
+Test suite: **167 unit tests across 16 classes + 11 instrumentation tests on the device, 0 failures**. The pre-commit hook runs typecheck + unit tests on every commit; `gradle app:connectedDebugAndroidTest` runs the device tests.
 
 ## How it fits together
 
@@ -113,12 +113,22 @@ Settled during five review rounds and recorded in the glossary and the spec:
 | Turn errors flashed and vanished                                                        | `ChatViewModel` keeps the last error on screen until the next send.                                                                                                                                                               |
 | UI unverified beyond the main chat path                                                 | Dark mode captured; approval dialog rendered and executed `ask_wiki_question` on DeepWiki; server list, conversation list, settings and tool-detail all render.                                                                   |
 
+## What was closed on 2026-11-11
+
+| Was                                                                                                             | Now                                                                                                                                                                                         |
+| --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| UI was XML layouts + RecyclerView adapters                                                                      | Full Compose rewrite (all 9 screens + theme + dynamic color); the XML era is deleted; chat is a `LazyColumn` keyed by row id; tool invocations coalesce into `Tools used: N · Calls: M`.    |
+| Reinstall wiped everything; app restored an October backup over the live device                                 | `database/mcp_chat.db` is now excluded from backup and device-to-device transfer on both rule files.                                                                                        |
+| Model ping-ponged `firecrawl_search -> ask_wiki_question -> firecrawl_search` with an approval dialog each time | `DeclinedToolGuard` short-circuits a declined tool for the rest of the turn; model gets a canned "already declined" result; device-verified.                                                |
+| Connected tests referenced Espresso XML ids; approval refused when settings were opened                         | ServerDraft (pin survival) extracted and JVM-tested (162 -> 167); Espresso activity test retired in favour of JVM tests; the approval dialog now renders on Compose and runs end-to-end.    |
+| ADB-MCP package did not exist                                                                                   | Standalone `adb-mcp` at `C:\Users\ahmed\dev\adb-mcp` — 36 tools for device automation; registered in the global OpenCode config; `npm run smoke` and `npm run e2e` validate the phone path. |
+
 ## Open work
 
 - **The stdio transport is not reachable from the phone UI.** The app configures every server by URL, so `StdioMcpTransport` is exercised by the test harness and by desktop reuse only. On a phone it would also need a binary built for the device's ABI. Putting it in the app means a transport field in the server config and a command field in the edit screen - a spec change, not a patch.
 - **The catalogue is a snapshot from 2026-10-29.** The public endpoints are third-party and can change or disappear; `python tools/verify_catalog.py` re-checks them.
-- **Paths not exercised by hand on the device:** the per-tool auto-approve toggle, the export/import buttons, the active-server restore and the Re-trust flow.
-- **Push:** no remote is configured for this repository; commits `4548b25` and `900200b` are local until you add one.
+- **Paths not exercised by hand on the device:** the per-tool auto-approve toggle, the export/import buttons, the active-server restore and the Re-trust flow. (The Compose tool-approval path itself is verified end-to-end on device; the reinstall incident invalidated the earlier manual checks.)
+- **Push:** the project now ships to a public GitHub remote under the `ahmedalbanna` account.
 
 ## How work moves here
 
