@@ -2,9 +2,15 @@
 <!--
   Android 6-11 full-backup rules.
 
-  The conversations themselves are backed up as usual; the SharedPreferences
-  file that holds the OpenAI key, the MCP URLs and any authorization header is
-  excluded so the key never leaves the device through a cloud backup.
+  Both domains are excluded entirely:
+
+  * The SharedPreferences file holds the OpenAI key, the MCP URLs and any
+    authorization header — none of it may leave the device.
+  * The conversation database — a stale restore once silently replaced the
+    whole conversation history with an older backup after a reinstall.
+    Conversations are worth keeping, but a blind restore destroying weeks of
+    history is a worse failure mode than losing them. Users can
+    export/import manually.
 
   The file name must match the one in EncryptedPreferences.create().
 -->
@@ -12,4 +18,7 @@
     <exclude
         domain="sharedpref"
         path="mcp_ai_chat_encrypted.xml" />
+    <exclude
+        domain="database"
+        path="mcp_chat.db" />
 </full-backup-content>

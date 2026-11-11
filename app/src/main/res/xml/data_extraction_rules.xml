@@ -2,9 +2,14 @@
 <!--
   Android 12+ backup and device-transfer rules.
 
-  Same intent as backup_rules.xml: secrets in the SharedPreferences are
-  excluded from both cloud backup and device-to-device transfer, while the
-  conversation database is kept.
+  Both domains are excluded entirely:
+
+  * `sharedpref/mcp_ai_chat_encrypted.xml` holds the OpenAI key, the MCP
+    URLs and any authorization header — never leave the device.
+  * `database/mcp_chat.db` — a stale restore once silently replaced the whole
+    conversation history with an older backup after a reinstall. Conversations
+    are worth keeping, but a blind restore destroying weeks of history is a
+    worse failure mode than losing them. Users can export/import manually.
 
   The file name must match the one in EncryptedPreferences.create().
 -->
@@ -13,10 +18,16 @@
         <exclude
             domain="sharedpref"
             path="mcp_ai_chat_encrypted.xml" />
+        <exclude
+            domain="database"
+            path="mcp_chat.db" />
     </cloud-backup>
     <device-transfer>
         <exclude
             domain="sharedpref"
             path="mcp_ai_chat_encrypted.xml" />
+        <exclude
+            domain="database"
+            path="mcp_chat.db" />
     </device-transfer>
 </data-extraction-rules>
