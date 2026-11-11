@@ -71,6 +71,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             }
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
+    /** Cancels the in-flight turn. Partial streamed text stays in the DB. */
+    fun cancelTurn() {
+        turnJob?.cancel()
+        turnJob = null
+    }
+
     private val _attachment = MutableStateFlow<ComposerAttachment?>(null)
     val attachment: StateFlow<ComposerAttachment?> = _attachment.asStateFlow()
 
@@ -203,6 +209,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 // Only transient progress clears at turn end. An error stays on
                 // screen until the next send, otherwise it flashes and vanishes.
                 if (lastError == null) _status.value = null
+                // Never leave a streaming bubble or a spinner on a row whose
+                // turn was cancelled or just ended.
+                _rows.value = _rows.value.map { row ->
+                    when (row) {
+                        is ChatRow.Assistant -> if (row.streaming) row.copy(streaming = false) else row
+                        is ChatRow.Tool -> if (row.running) row.copy(running = false) else row
+                        else -> row
+                    }
+                }
                 _attachment.value = null
                 _sending.value = false
             }

@@ -138,6 +138,7 @@ fun ChatScreen(
                 onClearAttachment = viewModel::clearAttachment,
                 onVoiceToggle = onVoiceToggle,
                 onVoiceStop = onVoiceStop,
+                onStop = viewModel::cancelTurn,
                 modifier = Modifier
                     .padding(horizontal = 12.dp, vertical = 8.dp)
                     .fillMaxWidth(),

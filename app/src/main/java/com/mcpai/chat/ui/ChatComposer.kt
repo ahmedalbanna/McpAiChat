@@ -63,6 +63,7 @@ fun ChatComposer(
     onClearAttachment: () -> Unit,
     onVoiceToggle: () -> Unit,
     onVoiceStop: () -> Unit,
+    onStop: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val canSend = text.isNotBlank() && !sending && !voiceActive
@@ -154,21 +155,34 @@ fun ChatComposer(
                         .size(40.dp)
                         .clip(CircleShape)
                         .background(
-                            if (canSend) chatColors.sendBackground else chatColors.sendDisabledBackground,
+                            when {
+                                sending -> chatColors.sendBackground
+                                canSend -> chatColors.sendBackground
+                                else -> chatColors.sendDisabledBackground
+                            },
                         ),
                     contentAlignment = Alignment.Center,
                 ) {
                     IconButton(
-                        onClick = { if (canSend) onSend() },
-                        enabled = canSend,
+                        onClick = { if (sending) onStop() else if (canSend) onSend() },
+                        enabled = sending || canSend,
                         modifier = Modifier.size(40.dp),
                     ) {
-                        Icon(
-                            imageVector = Icons.Filled.Send,
-                            contentDescription = stringResource(R.string.action_send),
-                            tint = if (canSend) chatColors.sendForeground else chatColors.sendDisabledForeground,
-                            modifier = Modifier.size(20.dp),
-                        )
+                        if (sending) {
+                            Icon(
+                                imageVector = Icons.Filled.Stop,
+                                contentDescription = stringResource(R.string.action_stop_generating),
+                                tint = chatColors.sendForeground,
+                                modifier = Modifier.size(20.dp),
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Filled.Send,
+                                contentDescription = stringResource(R.string.action_send),
+                                tint = if (canSend) chatColors.sendForeground else chatColors.sendDisabledForeground,
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
                     }
                 }
             }

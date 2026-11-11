@@ -10,6 +10,7 @@ import com.mcpai.chat.mcp.McpServerConfig
 import com.mcpai.chat.mcp.McpTool
 import com.mcpai.chat.mcp.ServerProbe
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -253,7 +254,8 @@ class ChatRepository internal constructor(context: Context) {
             return id
         }
 
-        val result = engine.sendTurn(
+        val result = try {
+        engine.sendTurn(
             userText = userText,
             history = history,
             tools = if (settings.toolsEnabled) _tools.value else emptyList(),
@@ -385,6 +387,29 @@ class ChatRepository internal constructor(context: Context) {
                 send(ChatEvent.Status(message))
             },
         )
+        } finally {
+            // A cancelled (or crashing) turn must not leave a streaming row or
+            // a pending tool row behind that would spin forever after reload.
+            // NonCancellable: the collecting job is already cancelled here, so
+            // a plain withContext(IO) would abort before the write lands.
+            val inFlight = currentAssistantId
+            val pendingToolIds = toolMessageIds.values.toList()
+            if (inFlight != null || pendingToolIds.isNotEmpty()) {
+                withContext(NonCancellable + Dispatchers.IO) {
+                    inFlight?.let { id ->
+                        db.updateMessage(id, buffer.toString(), StoredMessage.STATUS_DONE)
+                    }
+                    for (id in pendingToolIds) {
+                        db.updateToolResult(
+                            id,
+                            "The turn ended before this tool finished.",
+                            isError = true,
+                            status = StoredMessage.STATUS_ERROR,
+                        )
+                    }
+                }
+            }
+        }
 
         // A turn that ended without an explicit assistant turn (transport error).
         currentAssistantId?.let { id ->
