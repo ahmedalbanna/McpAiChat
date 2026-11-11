@@ -72,6 +72,7 @@
     <string name="action_clear_chat">Clear conversation</string>
     <string name="action_share_conversation">Share conversation</string>
     <string name="action_refresh_models">Load models from provider</string>
+    <string name="testing_server">Testing…</string>
     <string name="no_models_found">Could not load the model list</string>
     <string name="models_loaded">%d models loaded</string>
 
