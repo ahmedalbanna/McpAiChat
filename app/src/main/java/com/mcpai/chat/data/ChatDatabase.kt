@@ -207,26 +207,31 @@ class ChatDatabase(context: Context) :
             null, null, "id ASC",
         ).use { c ->
             while (c.moveToNext()) {
-                out += StoredMessage(
-                    id = c.getLong(c.getColumnIndexOrThrow("id")),
-                    conversationId = c.getLong(c.getColumnIndexOrThrow("conversation_id")),
-                    role = c.getString(c.getColumnIndexOrThrow("role")),
-                    content = c.getString(c.getColumnIndexOrThrow("content")),
-                    reasoning = c.getStringOrNull("reasoning"),
-                    status = c.getString(c.getColumnIndexOrThrow("status")),
-                    toolName = c.getStringOrNull("tool_name"),
-                    toolCallId = c.getStringOrNull("tool_call_id"),
-                    toolArgs = c.getStringOrNull("tool_args"),
-                    toolResult = c.getStringOrNull("tool_result"),
-                    toolCallsJson = c.getStringOrNull("tool_calls"),
-                    toolError = c.getInt(c.getColumnIndexOrThrow("tool_error")) == 1,
-                    attachmentPath = c.getStringOrNull("attachment_path"),
-                    attachmentName = c.getStringOrNull("attachment_name"),
-                    createdAt = c.getLong(c.getColumnIndexOrThrow("created_at")),
-                )
+                out += cursorToMessage(c)
             }
         }
         return out
+    }
+
+    /** The last user message in the conversation, if any. Used to re-run the last turn. */
+    fun lastUserMessage(conversationId: Long): StoredMessage? {
+        readableDatabase.query(
+            "messages", null,
+            "conversation_id = ? AND role = ?",
+            arrayOf(conversationId.toString(), StoredMessage.ROLE_USER),
+            null, null, "id DESC", "1",
+        ).use { c ->
+            return if (c.moveToFirst()) cursorToMessage(c) else null
+        }
+    }
+
+    /** Deletes every message after [afterId] in the conversation (re-run preparation). */
+    fun deleteMessagesAfter(conversationId: Long, afterId: Long) {
+        writableDatabase.delete(
+            "messages", "conversation_id = ? AND id > ?",
+            arrayOf(conversationId.toString(), afterId.toString()),
+        )
+        touchConversation(conversationId, null)
     }
 
     fun clearConversation(conversationId: Long) {
@@ -237,6 +242,24 @@ class ChatDatabase(context: Context) :
         val index = getColumnIndex(column)
         return if (index < 0 || isNull(index)) null else getString(index)
     }
+
+    private fun cursorToMessage(c: android.database.Cursor) = StoredMessage(
+        id = c.getLong(c.getColumnIndexOrThrow("id")),
+        conversationId = c.getLong(c.getColumnIndexOrThrow("conversation_id")),
+        role = c.getString(c.getColumnIndexOrThrow("role")),
+        content = c.getString(c.getColumnIndexOrThrow("content")),
+        reasoning = c.getStringOrNull("reasoning"),
+        status = c.getString(c.getColumnIndexOrThrow("status")),
+        toolName = c.getStringOrNull("tool_name"),
+        toolCallId = c.getStringOrNull("tool_call_id"),
+        toolArgs = c.getStringOrNull("tool_args"),
+        toolResult = c.getStringOrNull("tool_result"),
+        toolCallsJson = c.getStringOrNull("tool_calls"),
+        toolError = c.getInt(c.getColumnIndexOrThrow("tool_error")) == 1,
+        attachmentPath = c.getStringOrNull("attachment_path"),
+        attachmentName = c.getStringOrNull("attachment_name"),
+        createdAt = c.getLong(c.getColumnIndexOrThrow("created_at")),
+    )
 
     companion object {
         private const val DB_NAME = "mcp_chat.db"

@@ -48,6 +48,8 @@
     <string name="thought_label">Thought</string>
     <string name="action_copy_message">Copy message</string>
     <string name="action_copied">Copied</string>
+    <string name="action_regenerate">Regenerate</string>
+    <string name="action_dismiss">Dismiss</string>
     <string name="action_jump_to_latest">Jump to latest</string>
     <string name="action_attach">Attach file</string>
     <string name="action_remove_attachment">Remove attachment</string>

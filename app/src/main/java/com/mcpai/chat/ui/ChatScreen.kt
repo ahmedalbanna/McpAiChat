@@ -5,7 +5,10 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -22,6 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChatBubble
 import androidx.compose.material.icons.filled.ClearAll
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Share
@@ -35,6 +39,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -43,10 +48,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import com.mcpai.chat.R
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 
@@ -77,6 +85,8 @@ fun ChatScreen(
     val approvalRequest by viewModel.approval.collectAsStateWithLifecycle()
     val text by viewModel.composerText.collectAsStateWithLifecycle()
     val reasoningExpanded by viewModel.reasoningExpanded.collectAsStateWithLifecycle()
+    val error by viewModel.error.collectAsStateWithLifecycle()
+    val haptic = LocalHapticFeedback.current
 
     val canSend = text.isNotBlank() && !sending && !voiceActive
 
@@ -114,7 +124,44 @@ fun ChatScreen(
                 onClearConversation = onClearConversation,
                 onShareConversation = onShareConversation,
             )
-            status?.let { message ->
+            // An error takes precedence over the transient status line: it
+            // stays until dismissed or until the next send/regenerate.
+            error?.let { message ->
+                Surface(
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(start = 14.dp, top = 2.dp, end = 2.dp, bottom = 2.dp),
+                    ) {
+                        Text(
+                            text = message,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(vertical = 6.dp),
+                        )
+                        TextButton(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                viewModel.retryLastTurn()
+                            },
+                        ) {
+                            Text(stringResource(R.string.error_retry))
+                        }
+                        IconButton(onClick = viewModel::dismissError) {
+                            Icon(
+                                imageVector = Icons.Filled.Close,
+                                contentDescription = stringResource(R.string.action_dismiss),
+                                tint = MaterialTheme.colorScheme.onErrorContainer,
+                                modifier = Modifier.size(36.dp),
+                            )
+                        }
+                    }
+                }
+            } ?: status?.let { message ->
                 Surface(
                     color = MaterialTheme.colorScheme.secondaryContainer,
                     modifier = Modifier.fillMaxWidth(),
@@ -134,6 +181,8 @@ fun ChatScreen(
                     reasoningExpanded = reasoningExpanded,
                     onToggleToolGroup = viewModel::toggleToolGroup,
                     onToggleReasoning = viewModel::toggleReasoning,
+                    sending = sending,
+                    onRegenerate = viewModel::regenerateLast,
                 )
                 if (rows.isEmpty()) {
                     EmptyChatState(onSuggestion = viewModel::setComposerText)
@@ -236,6 +285,8 @@ private fun MessageList(
     reasoningExpanded: Set<Long>,
     onToggleToolGroup: (Long) -> Unit,
     onToggleReasoning: (Long) -> Unit,
+    sending: Boolean,
+    onRegenerate: () -> Unit,
 ) {
     val listState = rememberLazyListState()
     // Screen-lifetime scope for scroll-actor work started from clicks. The
@@ -296,12 +347,28 @@ private fun MessageList(
         }
     }
 
+    // The IME shrinks the viewport without changing the scroll offset, so a
+    // list parked at the end would show a cut-off tail after the keyboard
+    // opens (or closes). Re-snap whenever the IME height changes.
+    val imeBottom = WindowInsets.ime.asPaddingValues().calculateBottomPadding()
+    androidx.compose.runtime.LaunchedEffect(imeBottom) {
+        if (didInitialScroll && pinnedToBottom && rows.isNotEmpty()) {
+            snapToEnd()
+        }
+    }
+
     // Afterwards: pin only while parked at the end (stream-aware).
     androidx.compose.runtime.LaunchedEffect(rows.size, rows.lastOrNull()) {
         if (didInitialScroll && pinnedToBottom && rows.isNotEmpty()) {
             snapToEnd()
         }
     }
+
+    // Regenerate belongs to the newest answered assistant row only; earlier
+    // answers are frozen history.
+    val lastAssistantId = rows
+        .lastOrNull { it is ChatRow.Assistant && !it.streaming && it.text.isNotBlank() }
+        ?.let { (it as ChatRow.Assistant).id }
 
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
@@ -312,7 +379,13 @@ private fun MessageList(
             items(rows, key = { it.key() }) { row ->
                 when (row) {
                     is ChatRow.User -> UserMessageRow(row)
-                    is ChatRow.Assistant -> AssistantMessageRow(row, reasoningExpanded = row.id in reasoningExpanded, onToggleReasoning = onToggleReasoning)
+                    is ChatRow.Assistant -> AssistantMessageRow(
+                        row,
+                        reasoningExpanded = row.id in reasoningExpanded,
+                        onToggleReasoning = onToggleReasoning,
+                        showRegenerate = row.id == lastAssistantId && !sending,
+                        onRegenerate = onRegenerate,
+                    )
                     is ChatRow.ToolGroup -> ToolGroupRow(row, onToggleToolGroup)
                     is ChatRow.Thinking -> ThinkingRow()
                     is ChatRow.Tool -> ToolGroupRow(ChatRow.ToolGroup(row.id, listOf(row), expanded = false), onToggleToolGroup)

@@ -46,6 +46,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _status = MutableStateFlow<String?>(null)
     val status: StateFlow<String?> = _status.asStateFlow()
 
+    /** A turn that ended in failure. Cleared on send/regenerate and by the banner's dismiss. */
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error.asStateFlow()
+
     /** Group ids (first tool-call row id) the user has expanded on this screen. */
     private val expandedToolGroups = MutableStateFlow<Set<Long>>(emptySet())
 
@@ -150,13 +154,46 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         selectedAttachmentName = null
         _attachment.value = attachmentName?.let { ComposerAttachment(it, sending = true) }
 
-        // Start clean: the previous turn's error stays visible until this send.
+        _error.value = null
         _status.value = null
-        _sending.value = true
         turnJob = viewModelScope.launch {
-            var lastError: String? = null
-            try {
-                repo.send(text, attachmentPath, attachmentName).collect { event ->
+            collectTurn(repo.send(text, attachmentPath, attachmentName))
+        }
+    }
+
+    /**
+     * Re-runs the last user turn after truncating everything after it.
+     * The previous attempt's assistant and tool rows are deleted; the user
+     * bubble stays. Backs both the error banner's Retry and the assistant
+     * row's Regenerate button.
+     */
+    fun regenerateLast() {
+        if (turnJob?.isActive == true) return
+        turnJob = viewModelScope.launch {
+            val flow = repo.regenerate()
+            if (flow == null) return@launch
+            // Show the truncated history first; incoming events then append
+            // the fresh assistant row.
+            _rows.value = repo.loadHistory().map { it.toRow() }
+            _error.value = null
+            _status.value = null
+            collectTurn(flow)
+        }
+    }
+
+    /** Retry is the same operation as regenerate: both re-run the last user turn. */
+    fun retryLastTurn() = regenerateLast()
+
+    /** Clears a failure banner. Stays gone until the next send or regenerate. */
+    fun dismissError() {
+        _error.value = null
+    }
+
+    private suspend fun collectTurn(flow: kotlinx.coroutines.flow.Flow<ChatEvent>) {
+        var lastError: String? = null
+        _sending.value = true
+        try {
+            flow.collect { event ->
                     when (event) {
                     is ChatEvent.UserMessage ->
                         _rows.value += ChatRow.User(event.id, event.text)
@@ -217,7 +254,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     is ChatEvent.Status -> _status.value = event.message
                     is ChatEvent.Error -> {
                         lastError = event.message
-                        _status.value = event.message
+                        _error.value = event.message
                     }
                     }
                 }
@@ -246,7 +283,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 _attachment.value = null
                 _sending.value = false
             }
-        }
     }
 
     fun approve(request: ChatEvent.ToolApprovalRequested, approved: Boolean, trust: Boolean, autoApprove: Boolean) {

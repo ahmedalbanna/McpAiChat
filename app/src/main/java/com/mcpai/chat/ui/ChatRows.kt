@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -108,6 +109,9 @@ fun AssistantMessageRow(
     reasoningExpanded: Boolean,
     onToggleReasoning: (Long) -> Unit,
     modifier: Modifier = Modifier,
+    /** Only the newest assistant row offers a regenerate action. */
+    showRegenerate: Boolean = false,
+    onRegenerate: (() -> Unit)? = null,
 ) {
     Column(
         modifier = modifier
@@ -209,6 +213,28 @@ fun AssistantMessageRow(
                             MaterialTheme.colorScheme.onSurfaceVariant
                         },
                     )
+                }
+                // Regenerate this answer: truncate everything after the last
+                // user message and re-run that turn in place.
+                if (showRegenerate && onRegenerate != null) {
+                    androidx.compose.material3.IconButton(
+                        onClick = {
+                            haptic.performHapticFeedback(
+                                androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress,
+                            )
+                            onRegenerate()
+                        },
+                        modifier = Modifier.size(34.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Autorenew,
+                            contentDescription = androidx.compose.ui.res.stringResource(
+                                R.string.action_regenerate,
+                            ),
+                            modifier = Modifier.size(17.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
                 if (copied) {
                     Text(

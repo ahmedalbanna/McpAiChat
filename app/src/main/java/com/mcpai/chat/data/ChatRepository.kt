@@ -191,8 +191,16 @@ class ChatRepository internal constructor(context: Context) {
      * The assistant row is written to the database as it streams, so a rotation
      * or a crash never loses the partial answer.
      */
-    fun send(userText: String, attachmentPath: String? = null, attachmentName: String? = null): Flow<ChatEvent> = channelFlow {
-        val userId = withContext(Dispatchers.IO) {
+    fun send(
+        userText: String,
+        attachmentPath: String? = null,
+        attachmentName: String? = null,
+        reuseUserId: Long? = null,
+    ): Flow<ChatEvent> = channelFlow {
+        // A retry/regenerate re-runs the existing user message: it is not
+        // re-inserted and not echoed back as an event, so the already-reloaded
+        // rows do not duplicate the bubble.
+        val userId = reuseUserId ?: withContext(Dispatchers.IO) {
             db.insertMessage(
                 StoredMessage(
                     conversationId = conversationId,
@@ -203,19 +211,21 @@ class ChatRepository internal constructor(context: Context) {
                 ),
             )
         }
-        // Auto-set conversation title from the first user message.
-        withContext(Dispatchers.IO) {
-            val count = db.readableDatabase.query(
-                "messages", arrayOf("count(*) as c"), "conversation_id = ?",
-                arrayOf(conversationId.toString()), null, null, null,
-            ).use { c ->
-                if (c.moveToFirst()) c.getInt(c.getColumnIndexOrThrow("c")) else 0
+        if (reuseUserId == null) {
+            // Auto-set conversation title from the first user message.
+            withContext(Dispatchers.IO) {
+                val count = db.readableDatabase.query(
+                    "messages", arrayOf("count(*) as c"), "conversation_id = ?",
+                    arrayOf(conversationId.toString()), null, null, null,
+                ).use { c ->
+                    if (c.moveToFirst()) c.getInt(c.getColumnIndexOrThrow("c")) else 0
+                }
+                if (count == 1) {
+                    db.updateConversationTitle(conversationId, userText.take(50))
+                }
             }
-            if (count == 1) {
-                db.updateConversationTitle(conversationId, userText.take(50))
-            }
+            send(ChatEvent.UserMessage(userId, userText, attachmentPath, attachmentName))
         }
-        send(ChatEvent.UserMessage(userId, userText, attachmentPath, attachmentName))
 
         // Warm the tool catalogue if the screen opened before the handshake
         // finished. A server that exposes zero tools is already connected, so
@@ -425,6 +435,25 @@ class ChatRepository internal constructor(context: Context) {
         if (result.error != null) send(ChatEvent.Error(result.error))
         _status.value = ""
     }.flowOn(Dispatchers.Default)
+
+    /**
+     * Deletes everything after the last user message and returns the flow
+     * that re-runs that user turn. Null when the conversation has no user
+     * message. The user message itself (and its attachment) is kept; the
+     * conversation history is re-read after truncation, so the model sees
+     * exactly the pre-turn state.
+     */
+    suspend fun regenerate(): Flow<ChatEvent>? {
+        val lastUser = withContext(Dispatchers.IO) { db.lastUserMessage(conversationId) }
+            ?: return null
+        withContext(Dispatchers.IO) { db.deleteMessagesAfter(conversationId, lastUser.id) }
+        return send(
+            lastUser.content,
+            lastUser.attachmentPath,
+            lastUser.attachmentName,
+            reuseUserId = lastUser.id,
+        )
+    }
 
     /**
      * Rebuilds the OpenAI wire messages from the stored history.
