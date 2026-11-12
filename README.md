@@ -307,3 +307,17 @@ client library or a device that can run a process of its own.
   restores the servers it names; check the file before sharing it.
 - The catalogue of public servers is a snapshot from 2026-11-12; the endpoints
   are third-party and can change or disappear at any time.
+---
+
+## Releases
+
+Tagged releases follow semver. The current release is **v1.0.0** (`versionName`
+1.0.0, `versionCode` 1). CI builds the debug APK and runs the unit-test suite
+on every push and pull request to `master` — see
+[.github/workflows/ci.yml](.github/workflows/ci.yml).
+
+---
+
+## License
+
+[MIT](LICENSE) — Copyright (c) 2026 Ahmed Al-Banna.
