@@ -163,6 +163,7 @@ fun AssistantMessageRow(
         // Per-message copy of the raw markdown with transient confirmation.
         if (!row.streaming && row.text.isNotEmpty()) {
             val context = androidx.compose.ui.platform.LocalContext.current
+            val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
             var copied by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
             androidx.compose.runtime.LaunchedEffect(copied) {
                 if (copied) {
@@ -184,6 +185,9 @@ fun AssistantMessageRow(
                                 context.getString(R.string.action_copy_message),
                                 row.text,
                             ),
+                        )
+                        haptic.performHapticFeedback(
+                            androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress,
                         )
                         copied = true
                     },

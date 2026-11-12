@@ -38,6 +38,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -67,6 +69,7 @@ fun ChatComposer(
     modifier: Modifier = Modifier,
 ) {
     val canSend = text.isNotBlank() && !sending && !voiceActive
+    val haptic = LocalHapticFeedback.current
 
     Surface(
         shape = RoundedCornerShape(28.dp),
@@ -109,7 +112,14 @@ fun ChatComposer(
                     maxLines = 5,
                     singleLine = false,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                    keyboardActions = KeyboardActions(onSend = { if (canSend) onSend() }),
+                    keyboardActions = KeyboardActions(
+                        onSend = {
+                            if (canSend) {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onSend()
+                            }
+                        },
+                    ),
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
                         unfocusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
@@ -164,7 +174,15 @@ fun ChatComposer(
                     contentAlignment = Alignment.Center,
                 ) {
                     IconButton(
-                        onClick = { if (sending) onStop() else if (canSend) onSend() },
+                        onClick = {
+                            if (sending) {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onStop()
+                            } else if (canSend) {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onSend()
+                            }
+                        },
                         enabled = sending || canSend,
                         modifier = Modifier.size(40.dp),
                     ) {

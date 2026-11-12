@@ -1,8 +1,12 @@
 package com.mcpai.chat.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -91,10 +95,14 @@ fun ChatScreen(
         // which would leave the conversation half the screen tall. The M3
         // TopAppBar consumes the status bar itself; the bottom stays flush
         // like the legacy XML layout did.
-        // No bottom padding: adjustResize already shrinks the window when the
-        // IME opens, and this class of device reports a wildly wrong
-        // navigation-bar inset (hundreds of phantom pixels) that would leave
-        // the composer floating above a dead zone.
+        // enableEdgeToEdge sets decorFitsSystemWindows(false), so adjustResize
+        // does NOT shrink the window when the IME opens — the IME would draw
+        // over the composer. imePadding() on the composer (not the whole
+        // column) keeps it above the keyboard; the list keeps its space and
+        // stays behind the IME, like the reference apps. The bottom stays
+        // flush for the same reason as the top: this class of device reports
+        // a wildly wrong navigation-bar inset, so no bottom padding is added
+        // for the (rarely-empty) navigation bar.
         Column(
             modifier = Modifier.fillMaxSize(),
         ) {
@@ -146,6 +154,7 @@ fun ChatScreen(
                 onVoiceStop = onVoiceStop,
                 onStop = viewModel::cancelTurn,
                 modifier = Modifier
+                    .imePadding()
                     .padding(horizontal = 12.dp, vertical = 8.dp)
                     .fillMaxWidth(),
             )
@@ -364,13 +373,18 @@ private fun EmptyChatState(onSuggestion: (String) -> Unit) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 14.dp),
         )
-        // Suggestion chips pre-fill the composer; sending stays explicit.
-        androidx.compose.foundation.layout.FlowRow(
+        // Suggestion chips pre-fill the composer; sending stays explicit. One
+        // horizontally scrollable row keeps them from stacking one per line.
+        Row(
             modifier = Modifier
                 .padding(top = 22.dp)
-                .fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(
+                8.dp,
+                Alignment.CenterHorizontally,
+            ),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
         ) {
             suggestions.forEach { suggestion ->
                 androidx.compose.material3.AssistChip(
