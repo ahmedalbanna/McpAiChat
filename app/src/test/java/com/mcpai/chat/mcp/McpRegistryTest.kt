@@ -64,7 +64,11 @@ class McpRegistryTest {
         toolsFor: (McpServerConfig) -> List<String> = { emptyList() },
         onSend: () -> Unit = {},
     ): Pair<McpRegistry, MutableList<FakeTransport>> {
-        val made = mutableListOf<FakeTransport>()
+        // transportFactory is called concurrently from the parallel handshakes,
+        // so the shared list must be atomic — a plain ArrayList silently loses
+        // an entry under concurrent adds, which made the call-count assert read
+        // 6 instead of 9.
+        val made = java.util.Collections.synchronizedList(mutableListOf<FakeTransport>())
         val registry = McpRegistry(
             transportFactory = { cfg ->
                 FakeTransport(toolsFor(cfg), onSend).also { made += it }
