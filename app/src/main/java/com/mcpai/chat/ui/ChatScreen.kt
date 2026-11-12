@@ -125,7 +125,7 @@ fun ChatScreen(
                     onToggleToolGroup = viewModel::toggleToolGroup,
                 )
                 if (rows.isEmpty()) {
-                    EmptyChatState()
+                    EmptyChatState(onSuggestion = viewModel::setComposerText)
                 }
             }
 
@@ -333,7 +333,13 @@ private fun MessageList(
 }
 
 @Composable
-private fun EmptyChatState() {
+private fun EmptyChatState(onSuggestion: (String) -> Unit) {
+    val suggestions = listOf(
+        stringResource(R.string.suggestion_tools),
+        stringResource(R.string.suggestion_ai_news),
+        stringResource(R.string.suggestion_mcp_spec),
+        stringResource(R.string.suggestion_email),
+    )
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -353,6 +359,21 @@ private fun EmptyChatState() {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 14.dp),
         )
+        // Suggestion chips pre-fill the composer; sending stays explicit.
+        androidx.compose.foundation.layout.FlowRow(
+            modifier = Modifier
+                .padding(top = 22.dp)
+                .fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            suggestions.forEach { suggestion ->
+                androidx.compose.material3.AssistChip(
+                    onClick = { onSuggestion(suggestion) },
+                    label = { Text(suggestion) },
+                )
+            }
+        }
     }
 }
 

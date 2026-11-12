@@ -103,6 +103,10 @@
     <string name="status_untested">Not tested</string>
 
     <string name="empty_conversation">Send a message to start the conversation.</string>
+    <string name="suggestion_tools">What can you do with my MCP servers?</string>
+    <string name="suggestion_ai_news">Search the web for AI news this week</string>
+    <string name="suggestion_mcp_spec">Summarize the latest MCP specification</string>
+    <string name="suggestion_email">Draft a short meeting-invite email</string>
     <string name="empty_conversations">No conversations yet. Start a new chat.</string>
     <string name="no_tools_connected">no tools connected</string>
     <string name="no_servers_enabled">no MCP server enabled</string>
