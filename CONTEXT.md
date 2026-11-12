@@ -138,6 +138,7 @@ Settled during five review rounds and recorded in the glossary and the spec:
 | Multi-day conversations were one undifferentiated wall of bubbles | Hairline-separated date divider before the first message of each calendar day: today/yesterday get labels, older days `MMM d, yyyy`. Day bucketing is a pure JVM object (`DayDividers`) with unit tests; device-verified across November 11-12 (`d2629cc`). |
 | A prompt already sent could not be changed | Pencil on the newest user bubble loads its text into the composer's editing mode (labelled strip + cancel); send updates the message in place, truncates the following turn and re-runs it; edit state resets on send/cancel/new/clear; first-message retitling preserved. The composer now owns TextFieldValue locally so externally-replaced text (edit pre-fill, suggestion chips, send, cancel) lands the cursor at the end instead of position 0. Device-verified on a disposable conversation (`fbcb789`). |
 | The catalogue snapshot dated 2026-10-29 might have drifted | Re-verified with a live `initialize` + `tools/list` handshake against every entry; 33/33 answer on 2026-11-12, so no entries were pruned. Docs re-dated (`FREE-MCP-SERVERS.md`, `README.md`, `CONTEXT.md`). |
+| The repo had no LICENSE, tag, CI or build wrapper | MIT LICENSE (Ahmed Al-Banna, 2026); gradle wrapper committed and `gradlew` marked executable; CI workflow (Temurin JDK 21, `assembleDebug` + `testDebugUnitTest` on push/PR, setup-java v5). Both runs on the release line green; `versionName` 1.0.0; annotated tag `v1.0.0` pushed. |
 
 ## Open work
 
