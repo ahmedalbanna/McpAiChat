@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -364,6 +365,22 @@ private fun MessageList(
         }
     }
 
+    // Interleave a date divider before the first row of each calendar day.
+    val uiItems = remember(rows) {
+        val result = ArrayList<UiItem>(rows.size + 2)
+        val zone = java.time.ZoneId.systemDefault()
+        var previousDay: Long? = null
+        for (row in rows) {
+            val day = com.mcpai.chat.util.DayDividers.epochDayOf(row.createdAt, zone)
+            if (com.mcpai.chat.util.DayDividers.needsDivider(previousDay, day)) {
+                result += UiItem.Divider(day)
+            }
+            previousDay = day
+            result += UiItem.Row(row)
+        }
+        result
+    }
+
     // Regenerate belongs to the newest answered assistant row only; earlier
     // answers are frozen history.
     val lastAssistantId = rows
@@ -376,19 +393,27 @@ private fun MessageList(
             modifier = Modifier.fillMaxSize(),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 8.dp),
         ) {
-            items(rows, key = { it.key() }) { row ->
-                when (row) {
-                    is ChatRow.User -> UserMessageRow(row)
-                    is ChatRow.Assistant -> AssistantMessageRow(
-                        row,
-                        reasoningExpanded = row.id in reasoningExpanded,
-                        onToggleReasoning = onToggleReasoning,
-                        showRegenerate = row.id == lastAssistantId && !sending,
-                        onRegenerate = onRegenerate,
-                    )
-                    is ChatRow.ToolGroup -> ToolGroupRow(row, onToggleToolGroup)
-                    is ChatRow.Thinking -> ThinkingRow()
-                    is ChatRow.Tool -> ToolGroupRow(ChatRow.ToolGroup(row.id, listOf(row), expanded = false), onToggleToolGroup)
+            items(uiItems, key = { item ->
+                when (item) {
+                    is UiItem.Divider -> "d${item.dayEpoch}"
+                    is UiItem.Row -> "r${item.row.key()}"
+                }
+            }) { item ->
+                when (item) {
+                    is UiItem.Divider -> DayDivider(item.dayEpoch)
+                    is UiItem.Row -> when (val row = item.row) {
+                        is ChatRow.User -> UserMessageRow(row)
+                        is ChatRow.Assistant -> AssistantMessageRow(
+                            row,
+                            reasoningExpanded = row.id in reasoningExpanded,
+                            onToggleReasoning = onToggleReasoning,
+                            showRegenerate = row.id == lastAssistantId && !sending,
+                            onRegenerate = onRegenerate,
+                        )
+                        is ChatRow.ToolGroup -> ToolGroupRow(row, onToggleToolGroup)
+                        is ChatRow.Thinking -> ThinkingRow()
+                        is ChatRow.Tool -> ToolGroupRow(ChatRow.ToolGroup(row.id, listOf(row), expanded = false, createdAt = row.createdAt), onToggleToolGroup)
+                    }
                 }
             }
         }
@@ -468,6 +493,71 @@ private fun EmptyChatState(onSuggestion: (String) -> Unit) {
         }
     }
 }
+
+/** A date divider and a message row in the lazy list. */
+private sealed interface UiItem {
+    /** epochDay of the day a divider labels. */
+    data class Divider(val dayEpoch: Long) : UiItem
+
+    data class Row(val row: ChatRow) : UiItem
+}
+
+/**
+ * Hairline-separated date chip shown above the first message of each
+ * calendar day: today and yesterday get labels, anything older a date.
+ */
+@Composable
+private fun DayDivider(dayEpoch: Long) {
+    val today = java.time.LocalDate.now().toEpochDay()
+    val label = com.mcpai.chat.util.DayDividers.formatDayLabel(
+        dayEpoch,
+        today,
+        todayLabel = stringResource(R.string.day_today),
+        yesterdayLabel = stringResource(R.string.day_yesterday),
+        formatter = { day ->
+            val date = java.util.Date.from(
+                java.time.LocalDate.ofEpochDay(day)
+                    .atStartOfDay(java.time.ZoneId.systemDefault())
+                    .toInstant(),
+            )
+            java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.getDefault()).format(date)
+        },
+    )
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 10.dp)
+                .height(0.5.dp)
+                .background(MaterialTheme.colorScheme.outlineVariant),
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 10.dp)
+                .height(0.5.dp)
+                .background(MaterialTheme.colorScheme.outlineVariant),
+        )
+    }
+}
+
+/** Reads [createdAt] from any row kind. */
+private val ChatRow.createdAt: Long
+    get() = when (this) {
+        is ChatRow.User -> createdAt
+        is ChatRow.Assistant -> createdAt
+        is ChatRow.Tool -> createdAt
+        is ChatRow.Thinking -> createdAt
+        is ChatRow.ToolGroup -> createdAt
+    }
 
 /** Stable lazy-list keys for [ChatRow]. */
 private fun ChatRow.key(): String = when (this) {

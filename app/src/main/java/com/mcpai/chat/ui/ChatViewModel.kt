@@ -328,6 +328,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 id = first.id,
                 tools = pending.toList(),
                 expanded = first.id in expanded,
+                createdAt = first.createdAt,
             )
             pending = mutableListOf()
         }
@@ -358,7 +359,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun StoredMessage.toRow(): ChatRow = when (role) {
-        StoredMessage.ROLE_USER -> ChatRow.User(id, content, attachmentPath, attachmentName)
+        StoredMessage.ROLE_USER ->
+            ChatRow.User(id, content, attachmentPath, attachmentName, createdAt = createdAt)
         StoredMessage.ROLE_TOOL -> ChatRow.Tool(
             id = id,
             name = toolName.orEmpty(),
@@ -367,8 +369,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             isError = toolError,
             running = status == StoredMessage.STATUS_PENDING,
             declined = status == StoredMessage.STATUS_DECLINED,
+            createdAt = createdAt,
         )
 
-        else -> ChatRow.Assistant(id, content, status == StoredMessage.STATUS_STREAMING, reasoning.orEmpty())
+        else -> ChatRow.Assistant(
+            id,
+            content,
+            status == StoredMessage.STATUS_STREAMING,
+            reasoning.orEmpty(),
+            createdAt = createdAt,
+        )
     }
 }

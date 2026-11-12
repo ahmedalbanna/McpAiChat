@@ -14,6 +14,8 @@ sealed interface ChatRow {
         val text: String,
         val attachmentPath: String? = null,
         val attachmentName: String? = null,
+        /** When the row was created, for the day dividers. Live rows: now. */
+        val createdAt: Long = System.currentTimeMillis(),
     ) : ChatRow
 
     data class Assistant(
@@ -25,6 +27,8 @@ sealed interface ChatRow {
         val reasoningMs: Long? = null,
         /** When the reasoning phase started, for the live ticker. */
         val reasoningStartedAtMs: Long? = null,
+        /** When the row was created, for the day dividers. Live rows: now. */
+        val createdAt: Long = System.currentTimeMillis(),
     ) : ChatRow
 
     data class Tool(
@@ -35,10 +39,15 @@ sealed interface ChatRow {
         val isError: Boolean,
         val running: Boolean,
         val declined: Boolean = false,
+        /** When the row was created, for the day dividers. Live rows: now. */
+        val createdAt: Long = System.currentTimeMillis(),
     ) : ChatRow
 
     /** A temporary row shown while the app is waiting for the next model turn. */
-    data class Thinking(val id: Long) : ChatRow
+    data class Thinking(
+        val id: Long,
+        val createdAt: Long = System.currentTimeMillis(),
+    ) : ChatRow
 
     /**
      * Consecutive tool calls grouped behind one compact marker:
@@ -49,5 +58,7 @@ sealed interface ChatRow {
         val id: Long,
         val tools: List<Tool>,
         val expanded: Boolean,
+        /** Time of the first grouped call, for the day dividers. */
+        val createdAt: Long = System.currentTimeMillis(),
     ) : ChatRow
 }

@@ -48,6 +48,8 @@
     <string name="thought_label">Thought</string>
     <string name="action_copy_message">Copy message</string>
     <string name="action_copied">Copied</string>
+    <string name="day_today">Today</string>
+    <string name="day_yesterday">Yesterday</string>
     <string name="action_regenerate">Regenerate</string>
     <string name="action_dismiss">Dismiss</string>
     <string name="action_delete_conversation">Delete conversation</string>
