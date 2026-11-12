@@ -48,6 +48,9 @@
     <string name="thought_label">Thought</string>
     <string name="action_copy_message">Copy message</string>
     <string name="action_copied">Copied</string>
+    <string name="action_edit_message">Edit</string>
+    <string name="hint_edit_message">Edit your message…</string>
+    <string name="editing_message_label">Editing your message</string>
     <string name="day_today">Today</string>
     <string name="day_yesterday">Yesterday</string>
     <string name="action_regenerate">Regenerate</string>

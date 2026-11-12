@@ -162,6 +162,25 @@ class ChatDatabase(context: Context) :
         }
     }
 
+    /** The lowest message id in the conversation, or null when it is empty. */
+    fun firstMessageId(conversationId: Long): Long? {
+        readableDatabase.query(
+            "messages", arrayOf("MIN(id)"), "conversation_id = ?",
+            arrayOf(conversationId.toString()), null, null, null,
+        ).use { c ->
+            return if (c.moveToFirst() && !c.isNull(0)) c.getLong(0) else null
+        }
+    }
+
+    /** Replaces the attachment path/name of a message. */
+    fun updateAttachment(id: Long, path: String?, name: String?) {
+        val values = ContentValues().apply {
+            put("attachment_path", path)
+            put("attachment_name", name)
+        }
+        writableDatabase.update("messages", values, "id = ?", arrayOf(id.toString()))
+    }
+
     // ---- messages -----------------------------------------------------------
 
     fun insertMessage(message: StoredMessage): Long {

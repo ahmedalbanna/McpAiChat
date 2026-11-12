@@ -93,6 +93,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _composerText = MutableStateFlow("")
     val composerText: StateFlow<String> = _composerText.asStateFlow()
 
+    /** True while the user is editing the last user message in the composer. */
+    private val _editingLastMessage = MutableStateFlow(false)
+    val editingLastMessage: StateFlow<Boolean> = _editingLastMessage.asStateFlow()
+
     fun setComposerText(value: String) {
         _composerText.value = value
     }
@@ -120,11 +124,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun newConversation() {
+        _editingLastMessage.value = false
         repo.newConversation()
         reloadHistory()
     }
 
     fun clearConversation() {
+        _editingLastMessage.value = false
         repo.clearConversation()
         reloadHistory()
     }
@@ -150,14 +156,29 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
         val attachmentPath = selectedAttachmentPath
         val attachmentName = selectedAttachmentName
+        val editing = _editingLastMessage.value
+        val attachmentChanged = attachmentName != null
         selectedAttachmentPath = null
         selectedAttachmentName = null
         _attachment.value = attachmentName?.let { ComposerAttachment(it, sending = true) }
 
         _error.value = null
         _status.value = null
+        _editingLastMessage.value = false
         turnJob = viewModelScope.launch {
-            collectTurn(repo.send(text, attachmentPath, attachmentName))
+            if (editing) {
+                val flow = repo.editAndRerunLast(text, attachmentPath, attachmentName, attachmentChanged)
+                if (flow == null) {
+                    _sending.value = false
+                    return@launch
+                }
+                // Show the edited bubble immediately; the incoming events
+                // then append the fresh assistant row.
+                _rows.value = repo.loadHistory().map { it.toRow() }
+                collectTurn(flow)
+            } else {
+                collectTurn(repo.send(text, attachmentPath, attachmentName))
+            }
         }
     }
 
@@ -179,6 +200,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             _status.value = null
             collectTurn(flow)
         }
+    }
+
+    /** Pre-fills the composer with the last user message's text. */
+    fun startEditLastMessage() {
+        if (turnJob?.isActive == true) return
+        val lastUser = _rows.value.lastOrNull { it is ChatRow.User } as? ChatRow.User ?: return
+        _error.value = null
+        _status.value = null
+        setComposerText(lastUser.text)
+        _editingLastMessage.value = true
+    }
+
+    /** Exits edit mode and clears the draft. */
+    fun cancelEditLastMessage() {
+        _editingLastMessage.value = false
+        setComposerText("")
     }
 
     /** Retry is the same operation as regenerate: both re-run the last user turn. */

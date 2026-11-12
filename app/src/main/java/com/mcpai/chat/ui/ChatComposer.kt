@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Send
@@ -67,9 +68,33 @@ fun ChatComposer(
     onVoiceStop: () -> Unit,
     onStop: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Editing the last user message: shows an editing strip and a cancel. */
+    editingLastMessage: Boolean = false,
+    onCancelEdit: () -> Unit = {},
 ) {
     val canSend = text.isNotBlank() && !sending && !voiceActive
     val haptic = LocalHapticFeedback.current
+
+    // The field owns its selection; the caller owns only the string. When
+    // the view-model replaces the text externally (edit pre-fill, suggestion
+    // chips, send, cancel) the field reseeds with the cursor at the end.
+    // Typing echoes the same text back into the state and never reseeds.
+    var fieldValue by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(
+            androidx.compose.ui.text.input.TextFieldValue(
+                text,
+                androidx.compose.ui.text.TextRange(text.length),
+            ),
+        )
+    }
+    androidx.compose.runtime.LaunchedEffect(text) {
+        if (text != fieldValue.text) {
+            fieldValue = androidx.compose.ui.text.input.TextFieldValue(
+                text,
+                androidx.compose.ui.text.TextRange(text.length),
+            )
+        }
+    }
 
     Surface(
         shape = RoundedCornerShape(28.dp),
@@ -80,6 +105,37 @@ fun ChatComposer(
             .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(28.dp)),
     ) {
         Column {
+            if (editingLastMessage) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, top = 9.dp, end = 6.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Edit,
+                        contentDescription = null,
+                        modifier = Modifier.size(15.dp),
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                    Text(
+                        text = stringResource(R.string.editing_message_label),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(start = 6.dp),
+                    )
+                    IconButton(onClick = onCancelEdit, modifier = Modifier.size(28.dp)) {
+                        Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = stringResource(R.string.action_dismiss),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(17.dp),
+                        )
+                    }
+                }
+            }
             if (voiceActive) {
                 VoicePreviewRow(
                     transcript = voiceTranscript,
@@ -103,10 +159,21 @@ fun ChatComposer(
                 )
 
                 TextField(
-                    value = text,
-                    onValueChange = onTextChange,
+                    value = fieldValue,
+                    onValueChange = {
+                        fieldValue = it
+                        onTextChange(it.text)
+                    },
                     placeholder = {
-                        Text(stringResource(R.string.hint_message))
+                        Text(
+                            stringResource(
+                                if (editingLastMessage) {
+                                    R.string.hint_edit_message
+                                } else {
+                                    R.string.hint_message
+                                },
+                            ),
+                        )
                     },
                     textStyle = MaterialTheme.typography.bodyMedium,
                     maxLines = 5,

@@ -445,6 +445,40 @@ class ChatRepository internal constructor(context: Context) {
     }.flowOn(Dispatchers.Default)
 
     /**
+     * Updates the text (and optionally the attachment) of the last user
+     * message in place, deletes everything after it and returns the flow
+     * that re-runs that user turn. Null when the conversation has no user
+     * message. The bubble is updated rather than duplicated; the
+     * retitle-on-first-message rule of a fresh send is applied when the
+     * edited message is the conversation's first one.
+     */
+    suspend fun editAndRerunLast(
+        newText: String,
+        attachmentPath: String? = null,
+        attachmentName: String? = null,
+        attachmentChanged: Boolean = false,
+    ): Flow<ChatEvent>? {
+        val lastUser = withContext(Dispatchers.IO) { db.lastUserMessage(conversationId) }
+            ?: return null
+        withContext(Dispatchers.IO) {
+            db.updateMessage(lastUser.id, newText, StoredMessage.STATUS_DONE)
+            if (attachmentChanged) {
+                db.updateAttachment(lastUser.id, attachmentPath, attachmentName)
+            }
+            if (db.firstMessageId(conversationId) == lastUser.id) {
+                db.updateConversationTitle(conversationId, newText.take(50))
+            }
+            db.deleteMessagesAfter(conversationId, lastUser.id)
+        }
+        return send(
+            newText,
+            attachmentPath ?: lastUser.attachmentPath,
+            attachmentName ?: lastUser.attachmentName,
+            reuseUserId = lastUser.id,
+        )
+    }
+
+    /**
      * Deletes everything after the last user message and returns the flow
      * that re-runs that user turn. Null when the conversation has no user
      * message. The user message itself (and its attachment) is kept; the

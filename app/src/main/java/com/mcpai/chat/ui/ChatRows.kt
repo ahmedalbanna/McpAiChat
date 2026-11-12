@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Done
@@ -56,6 +57,9 @@ private const val MAX_BUBBLE_WIDTH = 560
 fun UserMessageRow(
     row: ChatRow.User,
     modifier: Modifier = Modifier,
+    /** Only the newest user row offers an edit action. */
+    showEdit: Boolean = false,
+    onEdit: (() -> Unit)? = null,
 ) {
     Column(
         modifier = modifier
@@ -99,6 +103,30 @@ fun UserMessageRow(
                 style = BubbleTextStyle,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 11.dp),
             )
+        }
+
+        // Edit-in-place of the newest user message; the turn after it is
+        // truncated and re-run from the edited text.
+        if (showEdit && onEdit != null) {
+            val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+            androidx.compose.material3.IconButton(
+                onClick = {
+                    haptic.performHapticFeedback(
+                        androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress,
+                    )
+                    onEdit()
+                },
+                modifier = Modifier.size(34.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Edit,
+                    contentDescription = androidx.compose.ui.res.stringResource(
+                        R.string.action_edit_message,
+                    ),
+                    modifier = Modifier.size(17.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }

@@ -85,6 +85,7 @@ fun ChatScreen(
     val attachment by viewModel.attachment.collectAsStateWithLifecycle()
     val approvalRequest by viewModel.approval.collectAsStateWithLifecycle()
     val text by viewModel.composerText.collectAsStateWithLifecycle()
+    val editingLastMessage by viewModel.editingLastMessage.collectAsStateWithLifecycle()
     val reasoningExpanded by viewModel.reasoningExpanded.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
     val haptic = LocalHapticFeedback.current
@@ -184,6 +185,7 @@ fun ChatScreen(
                     onToggleReasoning = viewModel::toggleReasoning,
                     sending = sending,
                     onRegenerate = viewModel::regenerateLast,
+                    onEditLastMessage = viewModel::startEditLastMessage,
                 )
                 if (rows.isEmpty()) {
                     EmptyChatState(onSuggestion = viewModel::setComposerText)
@@ -203,6 +205,8 @@ fun ChatScreen(
                 onVoiceToggle = onVoiceToggle,
                 onVoiceStop = onVoiceStop,
                 onStop = viewModel::cancelTurn,
+                editingLastMessage = editingLastMessage,
+                onCancelEdit = viewModel::cancelEditLastMessage,
                 modifier = Modifier
                     .imePadding()
                     .padding(horizontal = 12.dp, vertical = 8.dp)
@@ -288,6 +292,7 @@ private fun MessageList(
     onToggleReasoning: (Long) -> Unit,
     sending: Boolean,
     onRegenerate: () -> Unit,
+    onEditLastMessage: () -> Unit,
 ) {
     val listState = rememberLazyListState()
     // Screen-lifetime scope for scroll-actor work started from clicks. The
@@ -382,10 +387,12 @@ private fun MessageList(
     }
 
     // Regenerate belongs to the newest answered assistant row only; earlier
-    // answers are frozen history.
+    // answers are frozen history. The edit action belongs to the newest
+    // user row for the same reason.
     val lastAssistantId = rows
         .lastOrNull { it is ChatRow.Assistant && !it.streaming && it.text.isNotBlank() }
         ?.let { (it as ChatRow.Assistant).id }
+    val lastUserId = rows.lastOrNull { it is ChatRow.User }?.let { (it as ChatRow.User).id }
 
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
@@ -402,7 +409,11 @@ private fun MessageList(
                 when (item) {
                     is UiItem.Divider -> DayDivider(item.dayEpoch)
                     is UiItem.Row -> when (val row = item.row) {
-                        is ChatRow.User -> UserMessageRow(row)
+                        is ChatRow.User -> UserMessageRow(
+                            row,
+                            showEdit = row.id == lastUserId && !sending,
+                            onEdit = onEditLastMessage,
+                        )
                         is ChatRow.Assistant -> AssistantMessageRow(
                             row,
                             reasoningExpanded = row.id in reasoningExpanded,
