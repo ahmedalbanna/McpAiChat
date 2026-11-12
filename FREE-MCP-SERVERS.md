@@ -1,7 +1,9 @@
 # Free (no-key) remote MCP servers
 
-Servers checked on **2026-10-29** against the app's own client code
-(`HttpMcpTransport`, `Mcp-Protocol-Version: 2024-11-05`).
+Servers checked on **2026-11-12** against the app's own client code
+(`HttpMcpTransport`, `Mcp-Protocol-Version: 2024-11-05`). The 2026-10-29
+snapshot was re-verified on 2026-11-12; all 33 entries still answer a live
+handshake, so none were pruned.
 
 ## How this list was produced
 
@@ -26,12 +28,12 @@ directory probe.
 Most commercial vendors require an OAuth key and reject an anonymous
 `initialize`:
 
-| Service | Result |
-|---|---|
-| Notion, Linear, Figma, Sentry, Grafana, Zapier, Exa, Tavily, Cloudflare, Smithery, Glama | `HTTP 401/403` — needs an account token |
-| GitHub MCP (`api.githubcopilot.com/mcp`) | `HTTP 401` |
-| Apify, Pipedream | endpoint not found at the advertised URL |
-| Wikipedia (mcp.wikimedia.org), DuckDuckGo, YouTube, Brave, Perplexity | DNS does not resolve |
+| Service                                                                                  | Result                                   |
+| ---------------------------------------------------------------------------------------- | ---------------------------------------- |
+| Notion, Linear, Figma, Sentry, Grafana, Zapier, Exa, Tavily, Cloudflare, Smithery, Glama | `HTTP 401/403` — needs an account token  |
+| GitHub MCP (`api.githubcopilot.com/mcp`)                                                 | `HTTP 401`                               |
+| Apify, Pipedream                                                                         | endpoint not found at the advertised URL |
+| Wikipedia (mcp.wikimedia.org), DuckDuckGo, YouTube, Brave, Perplexity                    | DNS does not resolve                     |
 
 Only keyless endpoints are in the catalogue.
 
@@ -43,11 +45,11 @@ Every entry was probed on the day this file was written. Three entries that
 were working during the directory probe had since added a paywall and were
 removed rather than left as dead links:
 
-| Removed | Why |
-|---|---|
-| NPMScan | now `HTTP 403` |
+| Removed   | Why            |
+| --------- | -------------- |
+| NPMScan   | now `HTTP 403` |
 | Toolforte | now `HTTP 401` |
-| Framejet | `HTTP 503` |
+| Framejet  | `HTTP 503`     |
 
 **Re-verify before shipping.** Public MCP servers come and go quickly; a
 catalogue entry is a starting point, not a service guarantee. The app itself
@@ -56,17 +58,17 @@ reports the real status when you add a server, and the Servers screen shows
 
 ## Recommended starting set
 
-| Server | Why |
-|---|---|
-| **DeepWiki** | Ask questions about any public GitHub repo — the single most useful one for code work |
-| **Context7** | Current library docs, which the model's training data will not have |
-| **Hugging Face** | Model and dataset search, plus reading repo files |
-| **Firecrawl** or **ScrapingBee** | Read a web page the model needs to see |
-| **agentsvc.io** | A grab-bag: web scrape, news search, translate, IP lookup, SEC filings |
-| **TranscriptAPI** | YouTube transcripts |
-| **Webhook Toolkit** | Create a webhook, then let the model *wait* on an external system |
-| **Prompt Injection Scanner** | Screen text for injection patterns before trusting it |
-| **7Maps / Agora / Agent Nexus / SkillTide** | Servers that find other servers, so the catalogue can be extended at runtime |
+| Server                                      | Why                                                                                   |
+| ------------------------------------------- | ------------------------------------------------------------------------------------- |
+| **DeepWiki**                                | Ask questions about any public GitHub repo — the single most useful one for code work |
+| **Context7**                                | Current library docs, which the model's training data will not have                   |
+| **Hugging Face**                            | Model and dataset search, plus reading repo files                                     |
+| **Firecrawl** or **ScrapingBee**            | Read a web page the model needs to see                                                |
+| **agentsvc.io**                             | A grab-bag: web scrape, news search, translate, IP lookup, SEC filings                |
+| **TranscriptAPI**                           | YouTube transcripts                                                                   |
+| **Webhook Toolkit**                         | Create a webhook, then let the model _wait_ on an external system                     |
+| **Prompt Injection Scanner**                | Screen text for injection patterns before trusting it                                 |
+| **7Maps / Agora / Agent Nexus / SkillTide** | Servers that find other servers, so the catalogue can be extended at runtime          |
 
 ## A warning about untrusted servers
 
@@ -85,4 +87,4 @@ the confirmation prompt.
 
 ---
 
-*Last verified: 2026-10-29 — 33/33 catalogue entries answered.*
+_Last verified: 2026-11-12 — 33/33 catalogue entries answered._

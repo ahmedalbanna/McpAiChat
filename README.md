@@ -220,7 +220,7 @@ fixed during the run.
 
 The **Free MCP servers** button on the servers screen opens a catalogue of 33
 public MCP servers that need no key. Every entry was verified with a live
-`initialize` + `tools/list` handshake on **2026-10-29** — see
+`initialize` + `tools/list` handshake on **2026-11-12** — see
 [FREE-MCP-SERVERS.md](FREE-MCP-SERVERS.md) for the method, the results for the
 commercial vendors (Notion, Linear, Figma, Sentry, Zapier, GitHub… all require
 a token), and the security warning.
@@ -305,5 +305,5 @@ client library or a device that can run a process of its own.
 - Export writes the server list as JSON with the auth header values and the
   SPKI pins omitted — the export screen never leaks them. Importing a JSON file
   restores the servers it names; check the file before sharing it.
-- The catalogue of public servers is a snapshot from 2026-10-29; the endpoints
+- The catalogue of public servers is a snapshot from 2026-11-12; the endpoints
   are third-party and can change or disappear at any time.
