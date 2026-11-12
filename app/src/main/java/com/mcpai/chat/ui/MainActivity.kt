@@ -132,6 +132,18 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        // The conversation this screen shows can be deleted from the list
+        // while this activity is behind it (or while the process was dead).
+        // Switch to a fresh one instead of writing orphan messages into a
+        // deleted conversation.
+        val id = repo.currentConversationId()
+        if (id != 0L && !repo.conversationExists(id)) {
+            viewModel.loadConversation(-1)
+        }
+    }
+
     /**
      * Debug-only launcher configuration, so a device can be pointed at a local
      * server and provider without tapping through the settings screens.

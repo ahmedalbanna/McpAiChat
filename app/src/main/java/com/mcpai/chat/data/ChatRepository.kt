@@ -134,6 +134,14 @@ class ChatRepository internal constructor(context: Context) {
 
     fun allConversations(): List<ChatDatabase.ConversationSummary> = db.allConversations()
 
+    /** Deletes a conversation and every message in it. */
+    suspend fun deleteConversation(id: Long) = withContext(Dispatchers.IO) {
+        db.deleteConversation(id)
+    }
+
+    /** True while the conversation row exists. */
+    fun conversationExists(id: Long): Boolean = id != 0L && db.conversationExists(id)
+
     /** Reconnects every enabled MCP server and refreshes the tool catalogue. */
     suspend fun refreshServers(configs: List<McpServerConfig> = settings.servers()): List<ServerProbe> =
         withContext(Dispatchers.IO) {

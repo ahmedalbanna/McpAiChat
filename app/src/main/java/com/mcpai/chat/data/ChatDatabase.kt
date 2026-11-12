@@ -152,6 +152,16 @@ class ChatDatabase(context: Context) :
         writableDatabase.delete("conversations", "id = ?", arrayOf(id.toString()))
     }
 
+    /** True while the conversation row exists. */
+    fun conversationExists(id: Long): Boolean {
+        readableDatabase.query(
+            "conversations", arrayOf("id"), "id = ?", arrayOf(id.toString()),
+            null, null, null, "1",
+        ).use { c ->
+            return c.moveToFirst()
+        }
+    }
+
     // ---- messages -----------------------------------------------------------
 
     fun insertMessage(message: StoredMessage): Long {

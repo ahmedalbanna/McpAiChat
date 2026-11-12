@@ -33,6 +33,7 @@ class ConversationListActivity : ComponentActivity() {
                     summaries = summaries.value,
                     onOpen = ::openConversation,
                     onNewChat = ::startNewConversation,
+                    onDelete = ::deleteConversation,
                 )
             }
         }
@@ -55,4 +56,11 @@ class ConversationListActivity : ComponentActivity() {
     }
 
     private fun startNewConversation() = openConversation(repo.newConversation())
+
+    private fun deleteConversation(id: Long) {
+        lifecycleScope.launch {
+            repo.deleteConversation(id)
+            summaries.value = repo.allConversations()
+        }
+    }
 }

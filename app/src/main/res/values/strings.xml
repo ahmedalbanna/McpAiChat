@@ -50,6 +50,9 @@
     <string name="action_copied">Copied</string>
     <string name="action_regenerate">Regenerate</string>
     <string name="action_dismiss">Dismiss</string>
+    <string name="action_delete_conversation">Delete conversation</string>
+    <string name="delete_conversation_title">Delete conversation?</string>
+    <string name="delete_conversation_body">This permanently deletes the conversation and all of its messages.</string>
     <string name="action_jump_to_latest">Jump to latest</string>
     <string name="action_attach">Attach file</string>
     <string name="action_remove_attachment">Remove attachment</string>
