@@ -23,6 +23,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material3.CircularProgressIndicator
@@ -31,6 +33,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -170,6 +174,63 @@ fun AssistantMessageRow(
                     textColor = chatColors.bubbleAiText,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 11.dp),
                 )
+            }
+        }
+
+        // Per-message copy of the raw markdown with transient confirmation.
+        if (!row.streaming && row.text.isNotEmpty()) {
+            val context = androidx.compose.ui.platform.LocalContext.current
+            var copied by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+            androidx.compose.runtime.LaunchedEffect(copied) {
+                if (copied) {
+                    kotlinx.coroutines.delay(1800)
+                    copied = false
+                }
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(start = 2.dp, top = 1.dp),
+            ) {
+                androidx.compose.material3.IconButton(
+                    onClick = {
+                        val clipboard = context.applicationContext.getSystemService(
+                            android.content.Context.CLIPBOARD_SERVICE,
+                        ) as android.content.ClipboardManager
+                        clipboard.setPrimaryClip(
+                            android.content.ClipData.newPlainText(
+                                context.getString(R.string.action_copy_message),
+                                row.text,
+                            ),
+                        )
+                        copied = true
+                    },
+                    modifier = Modifier.size(34.dp),
+                ) {
+                    Icon(
+                        imageVector = if (copied) {
+                            Icons.Filled.Done
+                        } else {
+                            Icons.Filled.ContentCopy
+                        },
+                        contentDescription = androidx.compose.ui.res.stringResource(
+                            if (copied) R.string.action_copied else R.string.action_copy_message,
+                        ),
+                        modifier = Modifier.size(17.dp),
+                        tint = if (copied) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                    )
+                }
+                if (copied) {
+                    Text(
+                        text = androidx.compose.ui.res.stringResource(R.string.action_copied),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 2.dp),
+                    )
+                }
             }
         }
     }
