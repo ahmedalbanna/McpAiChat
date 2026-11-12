@@ -72,6 +72,7 @@ fun ChatScreen(
     val attachment by viewModel.attachment.collectAsStateWithLifecycle()
     val approvalRequest by viewModel.approval.collectAsStateWithLifecycle()
     val text by viewModel.composerText.collectAsStateWithLifecycle()
+    val reasoningExpanded by viewModel.reasoningExpanded.collectAsStateWithLifecycle()
 
     val canSend = text.isNotBlank() && !sending && !voiceActive
 
@@ -122,7 +123,9 @@ fun ChatScreen(
             Box(modifier = Modifier.weight(1f)) {
                 MessageList(
                     rows = rows,
+                    reasoningExpanded = reasoningExpanded,
                     onToggleToolGroup = viewModel::toggleToolGroup,
+                    onToggleReasoning = viewModel::toggleReasoning,
                 )
                 if (rows.isEmpty()) {
                     EmptyChatState(onSuggestion = viewModel::setComposerText)
@@ -221,7 +224,9 @@ private fun ChatTopBar(
 @Composable
 private fun MessageList(
     rows: List<ChatRow>,
+    reasoningExpanded: Set<Long>,
     onToggleToolGroup: (Long) -> Unit,
+    onToggleReasoning: (Long) -> Unit,
 ) {
     val listState = rememberLazyListState()
     // Screen-lifetime scope for scroll-actor work started from clicks. The
@@ -298,7 +303,7 @@ private fun MessageList(
             items(rows, key = { it.key() }) { row ->
                 when (row) {
                     is ChatRow.User -> UserMessageRow(row)
-                    is ChatRow.Assistant -> AssistantMessageRow(row)
+                    is ChatRow.Assistant -> AssistantMessageRow(row, reasoningExpanded = row.id in reasoningExpanded, onToggleReasoning = onToggleReasoning)
                     is ChatRow.ToolGroup -> ToolGroupRow(row, onToggleToolGroup)
                     is ChatRow.Thinking -> ThinkingRow()
                     is ChatRow.Tool -> ToolGroupRow(ChatRow.ToolGroup(row.id, listOf(row), expanded = false), onToggleToolGroup)

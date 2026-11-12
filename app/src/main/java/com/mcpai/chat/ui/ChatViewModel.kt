@@ -49,6 +49,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     /** Group ids (first tool-call row id) the user has expanded on this screen. */
     private val expandedToolGroups = MutableStateFlow<Set<Long>>(emptySet())
 
+    /** Reasoning disclosures (assistant row id) the user has expanded on this screen. */
+    private val expandedReasoning = MutableStateFlow<Set<Long>>(emptySet())
+    val reasoningExpanded: StateFlow<Set<Long>> = expandedReasoning.asStateFlow()
+
     private val _approval = MutableStateFlow<ChatEvent.ToolApprovalRequested?>(null)
     val approval: StateFlow<ChatEvent.ToolApprovalRequested?> = _approval.asStateFlow()
 
@@ -163,21 +167,33 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     is ChatEvent.AssistantDelta ->
                         _rows.value = _rows.value.map { row ->
                             if (row is ChatRow.Assistant && row.id == event.id) {
-                                row.copy(text = row.text + event.delta)
+                                row.copy(
+                                    text = row.text + event.delta,
+                                    reasoningMs = row.reasoningMs
+                                        ?: row.reasoningStartedAtMs?.let { System.currentTimeMillis() - it },
+                                )
                             } else row
                         }
 
                     is ChatEvent.ReasoningDelta ->
                         _rows.value = _rows.value.map { row ->
                             if (row is ChatRow.Assistant && row.id == event.id) {
-                                row.copy(reasoning = row.reasoning + event.delta)
+                                row.copy(
+                                    reasoning = row.reasoning + event.delta,
+                                    reasoningStartedAtMs = row.reasoningStartedAtMs
+                                        ?: System.currentTimeMillis(),
+                                )
                             } else row
                         }
 
                     is ChatEvent.AssistantDone ->
                         _rows.value = _rows.value.map { row ->
                             if (row is ChatRow.Assistant && row.id == event.id) {
-                                row.copy(streaming = false)
+                                row.copy(
+                                    streaming = false,
+                                    reasoningMs = row.reasoningMs
+                                        ?: row.reasoningStartedAtMs?.let { System.currentTimeMillis() - it },
+                                )
                             } else row
                         }
 
@@ -211,9 +227,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 if (lastError == null) _status.value = null
                 // Never leave a streaming bubble or a spinner on a row whose
                 // turn was cancelled or just ended.
+                val finishedAt = System.currentTimeMillis()
                 _rows.value = _rows.value.map { row ->
                     when (row) {
-                        is ChatRow.Assistant -> if (row.streaming) row.copy(streaming = false) else row
+                        is ChatRow.Assistant -> if (row.streaming) {
+                            row.copy(
+                                streaming = false,
+                                reasoningMs = row.reasoningMs
+                                    ?: row.reasoningStartedAtMs?.let { finishedAt - it },
+                            )
+                        } else {
+                            row
+                        }
                         is ChatRow.Tool -> if (row.running) row.copy(running = false) else row
                         else -> row
                     }
@@ -242,6 +267,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleToolGroup(groupId: Long) {
         expandedToolGroups.value = expandedToolGroups.value.let { current ->
             if (groupId in current) current - groupId else current + groupId
+        }
+    }
+
+    /** Flips one reasoning disclosure between collapsed and expanded. */
+    fun toggleReasoning(rowId: Long) {
+        expandedReasoning.value = expandedReasoning.value.let { current ->
+            if (rowId in current) current - rowId else current + rowId
         }
     }
 

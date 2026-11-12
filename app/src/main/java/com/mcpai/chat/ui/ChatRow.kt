@@ -21,6 +21,10 @@ sealed interface ChatRow {
         val text: String,
         val streaming: Boolean,
         val reasoning: String = "",
+        /** Elapsed reasoning time frozen when the answer phase starts. Live turns only; history rows have none. */
+        val reasoningMs: Long? = null,
+        /** When the reasoning phase started, for the live ticker. */
+        val reasoningStartedAtMs: Long? = null,
     ) : ChatRow
 
     data class Tool(

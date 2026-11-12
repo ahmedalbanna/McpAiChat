@@ -105,6 +105,8 @@ fun UserMessageRow(
 @Composable
 fun AssistantMessageRow(
     row: ChatRow.Assistant,
+    reasoningExpanded: Boolean,
+    onToggleReasoning: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -113,40 +115,21 @@ fun AssistantMessageRow(
             .padding(start = 12.dp, top = 5.dp, end = 60.dp, bottom = 5.dp),
     ) {
         if (row.reasoning.isNotBlank()) {
-            val trace = row.reasoning.trim()
-            val tail = if (trace.length > 400) "… " + trace.takeLast(400) else trace
-            Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = chatColors.reasoningBg,
-                modifier = Modifier
-                    .widthIn(max = MAX_BUBBLE_WIDTH.dp)
-                    .padding(bottom = 6.dp)
-                    .border(1.dp, chatColors.reasoningBg, RoundedCornerShape(12.dp)),
-            ) {
-                Text(
-                    text = tail,
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
-                    ),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
-                )
-            }
+            ReasoningDisclosure(
+                row = row,
+                expanded = reasoningExpanded,
+                onToggle = onToggleReasoning,
+            )
         }
 
         if (row.text.isEmpty() && row.streaming) {
-            Surface(
-                shape = AssistantBubbleShape,
-                color = chatColors.bubbleAi,
-                modifier = Modifier.border(0.5.dp, chatColors.bubbleAiStroke, AssistantBubbleShape),
-            ) {
-                Text(
-                    text = androidx.compose.ui.res.stringResource(R.string.ai_thinking),
-                    style = BubbleTextStyle,
-                    color = chatColors.bubbleAiText,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 11.dp),
-                )
-            }
+            // Waiting for the first delta: muted waiting marker, no bubble.
+            Text(
+                text = androidx.compose.ui.res.stringResource(R.string.ai_thinking),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
+            )
             return
         }
 
@@ -236,32 +219,91 @@ fun AssistantMessageRow(
     }
 }
 
+/**
+ * Muted inline "Thinking Ns" / "Thought Ns" disclosure above the answer.
+ * Collapsed by default; the raw trace renders only while expanded, indented
+ * and muted. Live turns tick the seconds; completed turns show the frozen
+ * duration; history rows (never timed) show a plain "Thought" label.
+ */
 @Composable
-fun ThinkingRow(modifier: Modifier = Modifier) {
-    Surface(
-        shape = AssistantBubbleShape,
-        color = chatColors.bubbleAi,
-        modifier = modifier
-            .padding(start = 12.dp, top = 6.dp, end = 60.dp, bottom = 6.dp)
-            .border(0.5.dp, chatColors.bubbleAiStroke, AssistantBubbleShape),
-    ) {
+private fun ReasoningDisclosure(
+    row: ChatRow.Assistant,
+    expanded: Boolean,
+    onToggle: (Long) -> Unit,
+) {
+    val started = row.reasoningStartedAtMs
+    val live = row.streaming && row.reasoningMs == null
+    var tick by androidx.compose.runtime.remember(started) { androidx.compose.runtime.mutableStateOf(1L) }
+    if (live && started != null) {
+        androidx.compose.runtime.LaunchedEffect(started) {
+            while (true) {
+                tick = com.mcpai.chat.util.ThoughtSeconds.of(System.currentTimeMillis() - started)
+                kotlinx.coroutines.delay(500)
+            }
+        }
+    }
+    val seconds = row.reasoningMs?.let { com.mcpai.chat.util.ThoughtSeconds.of(it) }
+        ?: if (started != null) tick else null
+    val label = when {
+        live -> if (seconds != null) {
+            androidx.compose.ui.res.stringResource(R.string.thinking_duration, seconds)
+        } else {
+            androidx.compose.ui.res.stringResource(R.string.thinking_label)
+        }
+        seconds != null -> androidx.compose.ui.res.stringResource(R.string.thought_duration, seconds)
+        else -> androidx.compose.ui.res.stringResource(R.string.thought_label)
+    }
+    Column {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            modifier = Modifier
+                .padding(start = 2.dp, bottom = if (expanded) 2.dp else 6.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .clickable { onToggle(row.id) }
+                .padding(horizontal = 6.dp, vertical = 3.dp),
         ) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(16.dp),
-                strokeWidth = 2.dp,
-                color = MaterialTheme.colorScheme.primary,
-            )
             Text(
-                text = androidx.compose.ui.res.stringResource(R.string.ai_thinking),
+                text = label,
                 style = MaterialTheme.typography.bodySmall,
-                color = chatColors.bubbleAiText,
-                modifier = Modifier.padding(start = 10.dp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Icon(
+                imageVector = if (expanded) Icons.Filled.ExpandMore else Icons.Filled.ChevronRight,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (expanded) {
+            Text(
+                text = row.reasoning.trim(),
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                ),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 14.dp, top = 1.dp, bottom = 6.dp),
             )
         }
     }
+}
+
+/** Ephemeral waiting marker between model turns: muted ticker, no chrome. */
+@Composable
+fun ThinkingRow(modifier: Modifier = Modifier) {
+    val startedAt = androidx.compose.runtime.remember { System.currentTimeMillis() }
+    var seconds by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(1L) }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        while (true) {
+            seconds = com.mcpai.chat.util.ThoughtSeconds.of(System.currentTimeMillis() - startedAt)
+            kotlinx.coroutines.delay(500)
+        }
+    }
+    Text(
+        text = androidx.compose.ui.res.stringResource(R.string.thinking_duration, seconds),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp),
+    )
 }
 
 /**
