@@ -4,10 +4,11 @@ Android client (Kotlin, `com.mcpai.chat`) for the Model Context Protocol: it con
 
 ## Build and verify
 
-- `gradle app:assembleDebug` — build the APK (this repo has **no `gradlew` wrapper**; use the system Gradle. JDK 21 toolchain, Java 17 bytecode).
+- `gradle app:assembleDebug` — build the APK (a `gradlew` wrapper is committed; the system Gradle also works. JDK 21 toolchain, Java 17 bytecode).
 - `gradle app:compileDebugKotlin` — typecheck.
 - `gradle app:testDebugUnitTest` — unit tests; XML results land in `app/build/test-results/testDebugUnitTest/`.
-- `gradle app:connectedDebugAndroidTest` — device tests on the attached phone; they cover the Keystore, SQLite, the HTTP stack and the network security config, none of which the JVM can reach. Results land in `app/build/reports/androidTests/connected/debug/`.
+- `gradle app:connectedDebugAndroidTest` — device tests on the attached phone; they cover the Keystore, SQLite, the HTTP stack, the network security config and the Compose tool-approval flows. Results land in `app/build/reports/androidTests/connected/debug/`.
+  - **THIS TASK UNINSTALLS THE APP AFTER THE RUN.** The app's data (SQLite history, encrypted settings, tool approvals) dies with it. On the user's daily-driver phone, prefer `adb shell am instrument -w -e class <test> com.mcpai.chat.test/androidx.test.runner.AndroidJUnitRunner`, which leaves the install alone. Backup the database (`run-as ... cat databases/mcp_chat.db | dd of=/sdcard/...` + `adb pull`) before any Gradle-driven connected run on real data.
 - The pre-commit hook (Husky) runs typecheck + tests; lint-staged runs Prettier over staged JSON/MD/XML/YAML.
 - Stage source paths explicitly — `git add -A` fails on long filenames under `app/build/`.
 
@@ -33,7 +34,7 @@ Android client (Kotlin, `com.mcpai.chat`) for the Model Context Protocol: it con
 | Server and chat UI                | Compose screens: `ui/{ConversationList,Main}Screen.kt`, `ui/ServersScreen.kt`, `ui/CatalogScreen.kt`, `ui/ServerEditScreen.kt`, `ui/SettingsScreen.kt`, `ui/ToolDetailScreen.kt`, rows in `ui/ChatRows.kt`, approval in `ui/ToolApprovalDialog.kt`, shared alert in `ui/AppAlertDialog.kt` |
 | Theme                             | `ui/theme/{Color,Theme,Type}.kt` — Material You on API 31+, brand fallback, `LocalChatColors` for bubble/composer/tool colors                                                                                                                                                              |
 | Markdown                          | `util/Markdown.kt` — CommonMark 0.32.0 parser (GFM tables pre-parsed spec-plus); `ui/markdown/MarkdownContent.kt` — Compose renderer                                                                                                                                                       |
-| Tool ping-pong guard              | engine/DeclinedToolGuard.kt - skips tools already declined this turn (plain JVM class, unit-tested)                                                                             |
+| Tool ping-pong guard              | engine/DeclinedToolGuard.kt - skips tools already declined this turn (plain JVM class, unit-tested)                                                                                                                                                                                        |
 | Device-only tests                 | `app/src/androidTest/java/com/mcpai/chat/`                                                                                                                                                                                                                                                 |
 
 ## Conventions

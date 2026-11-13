@@ -70,6 +70,12 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
+        // Debug builds only: apply the intent-seeded configuration FIRST, so a
+        // fresh profile can seed base_url/api_key/mcp_url (used by the device
+        // UI tests) before the empty-servers redirect decides where to go.
+        // Must run before any settings reads to take effect.
+        applyDebugConfigFromIntent()
+
         // If no MCP server is configured yet, send the user to add one first.
         val settings = Settings.get(applicationContext)
         if (settings.servers().isEmpty()) {
@@ -80,7 +86,6 @@ class MainActivity : ComponentActivity() {
 
         // Open a specific conversation if one was passed via intent extras.
         val intentConversationId = intent.getLongExtra("conversation_id", -1L)
-        applyDebugConfigFromIntent()
 
         setContent {
             McpAiChatTheme {

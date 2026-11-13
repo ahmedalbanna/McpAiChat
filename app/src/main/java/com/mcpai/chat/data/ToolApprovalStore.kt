@@ -85,7 +85,11 @@ class SqliteToolApprovalStore(
     }
 
     override fun revoke(serverId: String, toolName: String) {
-        setAutoApproved(serverId, toolName, false)
+        db.writableDatabase.delete(
+            "tool_approvals",
+            "server_id = ? AND tool_name = ?",
+            arrayOf(serverId, toolName),
+        )
     }
 }
 

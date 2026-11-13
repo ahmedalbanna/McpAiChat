@@ -113,13 +113,20 @@ gradle :app:testDebugUnitTest
 ```
 
 Device tests — these cover what the JVM cannot: the Android Keystore, SQLite,
-the Android HTTP stack and the network security config (a config that fails to
-parse on API 26 silently kills every HTTPS call in the app):
+the Android HTTP stack, the network security config (a config that fails to
+parse on API 26 silently kills every HTTPS call in the app) and the Compose
+tool-approval flow (approve runs the tool, deny skips it, "always allow"
+persists across conversations — driven end-to-end against a canned OpenAI SSE
+server and a canned MCP server on loopback):
 
 ```bash
 gradle :app:connectedDebugAndroidTest
 # -> app/build/reports/androidTests/connected/debug/
 ```
+
+Note: the Gradle task uninstalls the app after the run, wiping its local data.
+On a real device, prefer the raw instrumented run, which leaves the install
+alone: `adb shell am instrument -w com.mcpai.chat.test/androidx.test.runner.AndroidJUnitRunner`.
 
 ---
 
@@ -307,6 +314,7 @@ client library or a device that can run a process of its own.
   restores the servers it names; check the file before sharing it.
 - The catalogue of public servers is a snapshot from 2026-11-12; the endpoints
   are third-party and can change or disappear at any time.
+
 ---
 
 ## Releases
