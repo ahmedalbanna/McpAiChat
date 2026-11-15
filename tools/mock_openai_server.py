@@ -15,8 +15,10 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 
-def sse(chunks):
+def sse(chunks, delay=0.0):
     for chunk in chunks:
+        if delay:
+            time.sleep(delay)
         yield "data: " + json.dumps(chunk) + "\n\n"
     yield "data: [DONE]\n\n"
 
@@ -119,7 +121,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-cache")
         self.send_header("Connection", "close")
         self.end_headers()
-        for frame in sse(chunks):
+        for frame in sse(chunks, self.server.delay):
             self.wfile.write(frame.encode("utf-8"))
             self.wfile.flush()
 
@@ -138,10 +140,16 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=8098)
     parser.add_argument("--host", default="0.0.0.0")
+    parser.add_argument(
+        "--delay", type=float, default=0.0, help="seconds between SSE frames"
+    )
     args = parser.parse_args()
 
     server = ThreadingHTTPServer((args.host, args.port), Handler)
-    print(f"[openai-mock] listening on http://{args.host}:{args.port}/v1")
+    server.delay = args.delay
+    print(
+        f"[openai-mock] listening on http://{args.host}:{args.port}/v1 (delay={args.delay}s)"
+    )
     try:
         server.serve_forever()
     except KeyboardInterrupt:

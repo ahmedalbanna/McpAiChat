@@ -9,6 +9,12 @@ import com.mcpai.chat.mcp.McpRegistry
 import com.mcpai.chat.mcp.McpServerConfig
 import com.mcpai.chat.mcp.McpTool
 import com.mcpai.chat.mcp.ServerProbe
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
@@ -53,6 +59,9 @@ sealed interface ChatEvent {
 
     data class Status(val message: String) : ChatEvent
     data class Error(val message: String) : ChatEvent
+
+    /** Emitted once when the turn finishes (or is cancelled). */
+    object TurnEnded : ChatEvent
 }
 
 /**
@@ -83,6 +92,66 @@ class ChatRepository internal constructor(context: Context) {
 
     private val _status = MutableStateFlow("")
     val status: StateFlow<String> = _status.asStateFlow()
+
+    /**
+     * Owns the current turn for the whole process, not per-activity. The engine
+     * writes into [turnScope], so navigating away from the chat (or the OS
+     * reclaiming the activity) no longer kills the answer — the partial text
+     * is persisted to SQLite as it streams.
+     */
+    private val turnScope = kotlinx.coroutines.CoroutineScope(
+        kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default,
+    )
+
+    private var turnJob: Job? = null
+
+    /** True while a turn is running, from this process's perspective. */
+    private val _sending = MutableStateFlow(false)
+    val sending: StateFlow<Boolean> = _sending.asStateFlow()
+
+    private val _pendingApproval = MutableStateFlow<ChatEvent.ToolApprovalRequested?>(null)
+    /** The approval the model is waiting on, if any. The UI mirrors this. */
+    val pendingApproval: StateFlow<ChatEvent.ToolApprovalRequested?> = _pendingApproval.asStateFlow()
+
+    /** Last turn started via [startTurn] was cancelled by the user. */
+    private var lastTurnCancelled = false
+
+    private val _turnEvents = MutableSharedFlow<ChatEvent>(extraBufferCapacity = 512)
+
+    /**
+     * Streams every event of the current turn, in order. Events are also
+     * applied to the ViewModel-local row state while the activity is alive;
+     * the durable source of truth is SQLite.
+     */
+    val turnEvents: SharedFlow<ChatEvent> = _turnEvents.asSharedFlow()
+
+    /**
+     * Runs the engine for [flow] on [turnScope] and publishes all events to
+     * [turnEvents]. The collecting activity may die at any moment; the turn
+     * itself does not. A new turn cancels the previous one.
+     */
+    fun startTurn(flow: Flow<ChatEvent>) {
+        turnJob?.cancel()
+        lastTurnCancelled = false
+        _sending.value = true
+        _pendingApproval.value = null
+        turnJob = turnScope.launch {
+            try {
+                flow.collect { _turnEvents.emit(it) }
+            } finally {
+                _turnEvents.emit(ChatEvent.TurnEnded)
+                _sending.value = false
+                _pendingApproval.value = null
+            }
+        }
+    }
+
+    /** Cancels the in-flight turn. Partial streamed text stays in the DB. */
+    fun cancelTurn() {
+        lastTurnCancelled = true
+        turnJob?.cancel()
+        turnJob = null
+    }
 
     /**
      * The user's answer to the one pending tool-approval request.
@@ -282,6 +351,11 @@ class ChatRepository internal constructor(context: Context) {
             onTextDelta = { delta ->
                 buffer.append(delta)
                 val id = openAssistantRow()
+                // Persist the growing answer so an activity recreated mid-turn
+                // can render it immediately.
+                withContext(Dispatchers.IO) {
+                    db.updateStreamingMessage(id, buffer.toString())
+                }
                 send(ChatEvent.AssistantDelta(id, delta))
             },
             onReasoningDelta = { delta ->
@@ -325,7 +399,7 @@ class ChatRepository internal constructor(context: Context) {
                 send(ChatEvent.ToolStarted(id, call.name, call.arguments))
             },
             onToolResult = { call, text, outcome ->
-                val id = toolMessageIds[call.id]
+                val id = toolMessageIds.remove(call.id)
                 if (id != null) {
                     withContext(Dispatchers.IO) {
                         db.updateToolResult(
@@ -378,15 +452,16 @@ class ChatRepository internal constructor(context: Context) {
                         serverName,
                         toolMessageIds[call.id] ?: 0L,
                     )
-                    send(
-                        ChatEvent.ToolApprovalRequested(
-                            id = toolMessageIds[call.id] ?: 0L,
-                            name = call.name,
-                            args = call.arguments,
-                            serverName = serverName,
-                        ),
+                    val requested = ChatEvent.ToolApprovalRequested(
+                        id = toolMessageIds[call.id] ?: 0L,
+                        name = call.name,
+                        args = call.arguments,
+                        serverName = serverName,
                     )
+                    _pendingApproval.value = requested
+                    send(requested)
                     val decision = approvalAnswers.receive()
+                    _pendingApproval.value = null
                     Timber.tag("Mcp.Approval").d(
                         "decision: approved=%s trust=%s autoApprove=%s",
                         decision.approved,

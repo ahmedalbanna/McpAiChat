@@ -6,7 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.mcpai.chat.data.ChatEvent
 import com.mcpai.chat.data.ChatRepository
 import com.mcpai.chat.data.StoredMessage
-import kotlinx.coroutines.Job
+
 import timber.log.Timber
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -24,13 +24,14 @@ data class ComposerAttachment(
 )
 
 /**
- * Owns the conversation turn so rotation and configuration changes do not kill
- * it.
+ * Owns the conversation UI state. The turn itself lives in the repository,
+ * so rotation and configuration changes do not kill it — and neither does
+ * navigating back to the conversation list.
  *
- * The activity lifecycle is short-lived; the turn is not. All work happens in
- * [viewModelScope], the message list is a single [StateFlow] the UI paints,
- * and the tool-approval request is a state value rather than a collector —
- * a recreated activity simply re-collects it and shows the same dialog.
+ * The activity lifecycle is short-lived; the turn is not. This ViewModel is
+ * only the UI projection: the message list is a single [StateFlow] the UI
+ * paints, and the tool-approval request is repo state the activity mirrors —
+ * a recreated activity re-reads it and shows the same dialog.
  */
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -57,11 +58,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val expandedReasoning = MutableStateFlow<Set<Long>>(emptySet())
     val reasoningExpanded: StateFlow<Set<Long>> = expandedReasoning.asStateFlow()
 
-    private val _approval = MutableStateFlow<ChatEvent.ToolApprovalRequested?>(null)
-    val approval: StateFlow<ChatEvent.ToolApprovalRequested?> = _approval.asStateFlow()
+    // The turn's job lives in the repository, not in this ViewModel: the
+    // activity may be destroyed and recreated (navigation, configuration)
+    // without killing the answer. This ViewModel is only the UI projection.
 
-    private val _sending = MutableStateFlow(false)
-    val sending: StateFlow<Boolean> = _sending.asStateFlow()
+    /** The approval the engine is waiting on; restored here on recreate. */
+    val approval: StateFlow<ChatEvent.ToolApprovalRequested?> = repo.pendingApproval
+
+    /** True while a turn is running, from this process's perspective. */
+    val sending: StateFlow<Boolean> = repo.sending
 
     /**
      * Rows to paint: consecutive tool calls are coalesced into one compact
@@ -70,7 +75,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
      * Neither the grouping nor the thinking row is persisted.
      */
     val displayedRows: StateFlow<List<ChatRow>> =
-        combine(_rows, _sending, expandedToolGroups) { rows, sending, expanded ->
+        combine(_rows, repo.sending, expandedToolGroups) { rows, sending, expanded ->
             val grouped = coalesceToolRuns(rows, expanded)
             if (shouldShowThinking(grouped, sending)) {
                 grouped + ChatRow.Thinking(PENDING_THINKING_ID)
@@ -80,10 +85,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     /** Cancels the in-flight turn. Partial streamed text stays in the DB. */
-    fun cancelTurn() {
-        turnJob?.cancel()
-        turnJob = null
-    }
+    fun cancelTurn() = repo.cancelTurn()
 
     private val _attachment = MutableStateFlow<ComposerAttachment?>(null)
     val attachment: StateFlow<ComposerAttachment?> = _attachment.asStateFlow()
@@ -104,7 +106,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private var selectedAttachmentPath: String? = null
     private var selectedAttachmentName: String? = null
 
-    private var turnJob: Job? = null
+    init {
+        // The turn's events are owned by the repository; this process-global
+        // collector projects them onto the screen's rows. A recreated
+        // activity re-attaches through a fresh ViewModel.
+        viewModelScope.launch {
+            repo.turnEvents.collect { handleTurnEvent(it) }
+        }
+    }
 
     fun loadConversation(conversationId: Long) {
         viewModelScope.launch {
@@ -152,7 +161,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun send(text: String) {
-        if (text.isBlank() || turnJob?.isActive == true) return
+        if (text.isBlank() || repo.sending.value) return
 
         val attachmentPath = selectedAttachmentPath
         val attachmentName = selectedAttachmentName
@@ -165,20 +174,20 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         _error.value = null
         _status.value = null
         _editingLastMessage.value = false
-        turnJob = viewModelScope.launch {
-            if (editing) {
+        if (editing) {
+            viewModelScope.launch {
                 val flow = repo.editAndRerunLast(text, attachmentPath, attachmentName, attachmentChanged)
                 if (flow == null) {
-                    _sending.value = false
+                    _attachment.value = null
                     return@launch
                 }
                 // Show the edited bubble immediately; the incoming events
                 // then append the fresh assistant row.
                 _rows.value = repo.loadHistory().map { it.toRow() }
-                collectTurn(flow)
-            } else {
-                collectTurn(repo.send(text, attachmentPath, attachmentName))
+                repo.startTurn(flow)
             }
+        } else {
+            repo.startTurn(repo.send(text, attachmentPath, attachmentName))
         }
     }
 
@@ -189,8 +198,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
      * row's Regenerate button.
      */
     fun regenerateLast() {
-        if (turnJob?.isActive == true) return
-        turnJob = viewModelScope.launch {
+        if (repo.sending.value) return
+        viewModelScope.launch {
             val flow = repo.regenerate()
             if (flow == null) return@launch
             // Show the truncated history first; incoming events then append
@@ -198,13 +207,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             _rows.value = repo.loadHistory().map { it.toRow() }
             _error.value = null
             _status.value = null
-            collectTurn(flow)
+            repo.startTurn(flow)
         }
     }
 
     /** Pre-fills the composer with the last user message's text. */
     fun startEditLastMessage() {
-        if (turnJob?.isActive == true) return
+        if (repo.sending.value) return
         val lastUser = _rows.value.lastOrNull { it is ChatRow.User } as? ChatRow.User ?: return
         _error.value = null
         _status.value = null
@@ -226,79 +235,73 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         _error.value = null
     }
 
-    private suspend fun collectTurn(flow: kotlinx.coroutines.flow.Flow<ChatEvent>) {
-        var lastError: String? = null
-        _sending.value = true
-        try {
-            flow.collect { event ->
-                    when (event) {
-                    is ChatEvent.UserMessage ->
-                        _rows.value += ChatRow.User(event.id, event.text)
+    private fun handleTurnEvent(event: ChatEvent) {
+        when (event) {
+            is ChatEvent.UserMessage ->
+                _rows.value += ChatRow.User(event.id, event.text)
 
-                    is ChatEvent.AssistantStarted ->
-                        _rows.value += ChatRow.Assistant(event.id, "", true)
+            is ChatEvent.AssistantStarted ->
+                _rows.value += ChatRow.Assistant(event.id, "", true)
 
-                    is ChatEvent.AssistantDelta ->
-                        _rows.value = _rows.value.map { row ->
-                            if (row is ChatRow.Assistant && row.id == event.id) {
-                                row.copy(
-                                    text = row.text + event.delta,
-                                    reasoningMs = row.reasoningMs
-                                        ?: row.reasoningStartedAtMs?.let { System.currentTimeMillis() - it },
-                                )
-                            } else row
-                        }
-
-                    is ChatEvent.ReasoningDelta ->
-                        _rows.value = _rows.value.map { row ->
-                            if (row is ChatRow.Assistant && row.id == event.id) {
-                                row.copy(
-                                    reasoning = row.reasoning + event.delta,
-                                    reasoningStartedAtMs = row.reasoningStartedAtMs
-                                        ?: System.currentTimeMillis(),
-                                )
-                            } else row
-                        }
-
-                    is ChatEvent.AssistantDone ->
-                        _rows.value = _rows.value.map { row ->
-                            if (row is ChatRow.Assistant && row.id == event.id) {
-                                row.copy(
-                                    streaming = false,
-                                    reasoningMs = row.reasoningMs
-                                        ?: row.reasoningStartedAtMs?.let { System.currentTimeMillis() - it },
-                                )
-                            } else row
-                        }
-
-                    is ChatEvent.ToolStarted ->
-                        _rows.value += ChatRow.Tool(event.id, event.name, event.args, null, false, true)
-
-                    is ChatEvent.ToolFinished ->
-                        _rows.value = _rows.value.map { row ->
-                            if (row is ChatRow.Tool && row.id == event.id) {
-                                row.copy(
-                                    result = event.result,
-                                    isError = event.isError,
-                                    running = false,
-                                    declined = event.declined,
-                                )
-                            } else row
-                        }
-
-                    is ChatEvent.ToolApprovalRequested -> _approval.value = event
-
-                    is ChatEvent.Status -> _status.value = event.message
-                    is ChatEvent.Error -> {
-                        lastError = event.message
-                        _error.value = event.message
-                    }
-                    }
+            is ChatEvent.AssistantDelta ->
+                _rows.value = _rows.value.map { row ->
+                    if (row is ChatRow.Assistant && row.id == event.id) {
+                        row.copy(
+                            text = row.text + event.delta,
+                            reasoningMs = row.reasoningMs
+                                ?: row.reasoningStartedAtMs?.let { System.currentTimeMillis() - it },
+                        )
+                    } else row
                 }
-            } finally {
+
+            is ChatEvent.ReasoningDelta ->
+                _rows.value = _rows.value.map { row ->
+                    if (row is ChatRow.Assistant && row.id == event.id) {
+                        row.copy(
+                            reasoning = row.reasoning + event.delta,
+                            reasoningStartedAtMs = row.reasoningStartedAtMs
+                                ?: System.currentTimeMillis(),
+                        )
+                    } else row
+                }
+
+            is ChatEvent.AssistantDone ->
+                _rows.value = _rows.value.map { row ->
+                    if (row is ChatRow.Assistant && row.id == event.id) {
+                        row.copy(
+                            streaming = false,
+                            reasoningMs = row.reasoningMs
+                                ?: row.reasoningStartedAtMs?.let { System.currentTimeMillis() - it },
+                        )
+                    } else row
+                }
+
+            is ChatEvent.ToolStarted ->
+                _rows.value += ChatRow.Tool(event.id, event.name, event.args, null, false, true)
+
+            is ChatEvent.ToolFinished ->
+                _rows.value = _rows.value.map { row ->
+                    if (row is ChatRow.Tool && row.id == event.id) {
+                        row.copy(
+                            result = event.result,
+                            isError = event.isError,
+                            running = false,
+                            declined = event.declined,
+                        )
+                    } else row
+                }
+
+            // The approval is repo state; the dialog reads it directly.
+            is ChatEvent.ToolApprovalRequested -> Unit
+
+            is ChatEvent.Status -> _status.value = event.message
+
+            is ChatEvent.Error -> _error.value = event.message
+
+            is ChatEvent.TurnEnded -> {
                 // Only transient progress clears at turn end. An error stays on
                 // screen until the next send, otherwise it flashes and vanishes.
-                if (lastError == null) _status.value = null
+                if (_error.value == null) _status.value = null
                 // Never leave a streaming bubble or a spinner on a row whose
                 // turn was cancelled or just ended.
                 val finishedAt = System.currentTimeMillis()
@@ -318,21 +321,20 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
                 _attachment.value = null
-                _sending.value = false
             }
+        }
     }
 
     fun approve(request: ChatEvent.ToolApprovalRequested, approved: Boolean, trust: Boolean, autoApprove: Boolean) {
-        if (_approval.value?.id != request.id) {
-            Timber.tag("Mcp.Approval").w("ignoring stale answer: %s (pending: %s)", request.name, _approval.value?.name)
+        if (repo.pendingApproval.value?.id != request.id) {
+            Timber.tag("Mcp.Approval").w("ignoring stale answer: %s (pending: %s)", request.name, repo.pendingApproval.value?.name)
             return
         }
-        _approval.value = null
         repo.approveToolCall(approved = approved, trustServer = trust, autoApproveTool = autoApprove)
     }
 
     override fun onCleared() {
-        turnJob?.cancel()
+        // The turn keeps running in the repository; do not cancel it here.
         super.onCleared()
     }
 

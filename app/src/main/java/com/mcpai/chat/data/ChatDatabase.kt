@@ -263,6 +263,12 @@ class ChatDatabase(context: Context) :
         touchConversation(conversationId, null)
     }
 
+    /** Replaces only the visible content; [status] stays STREAMING. Used to persist streaming deltas. */
+    fun updateStreamingMessage(id: Long, content: String) {
+        val values = ContentValues().apply { put("content", content) }
+        writableDatabase.update("messages", values, "id = ?", arrayOf(id.toString()))
+    }
+
     fun clearConversation(conversationId: Long) {
         writableDatabase.delete("messages", "conversation_id = ?", arrayOf(conversationId.toString()))
     }
