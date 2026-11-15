@@ -69,7 +69,8 @@ fun ChatScreen(
     viewModel: ChatViewModel,
     toolsSubtitle: String,
     voiceActive: Boolean,
-    voiceTranscript: String?,
+    voiceLevel: Float,
+    voiceSeconds: Int,
     onOpenServers: () -> Unit,
     onOpenSettings: () -> Unit,
     onNewConversation: () -> Unit,
@@ -78,6 +79,7 @@ fun ChatScreen(
     onPickAttachment: () -> Unit,
     onVoiceToggle: () -> Unit,
     onVoiceStop: () -> Unit,
+    onVoiceDiscard: () -> Unit,
 ) {
     val rows by viewModel.displayedRows.collectAsStateWithLifecycle()
     val status by viewModel.status.collectAsStateWithLifecycle()
@@ -198,12 +200,14 @@ fun ChatScreen(
                 onSend = ::send,
                 sending = sending,
                 voiceActive = voiceActive,
-                voiceTranscript = voiceTranscript,
+                voiceLevel = voiceLevel,
+                voiceSeconds = voiceSeconds,
                 attachment = attachment,
                 onAttach = onPickAttachment,
                 onClearAttachment = viewModel::clearAttachment,
                 onVoiceToggle = onVoiceToggle,
                 onVoiceStop = onVoiceStop,
+                onVoiceDiscard = onVoiceDiscard,
                 onStop = viewModel::cancelTurn,
                 editingLastMessage = editingLastMessage,
                 onCancelEdit = viewModel::cancelEditLastMessage,

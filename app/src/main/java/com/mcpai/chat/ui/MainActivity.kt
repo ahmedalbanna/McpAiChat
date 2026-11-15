@@ -4,9 +4,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
-import android.speech.RecognitionListener
-import android.speech.RecognizerIntent
-import android.speech.SpeechRecognizer
+
 import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -39,9 +37,8 @@ class MainActivity : ComponentActivity() {
     private val viewModel by viewModels<ChatViewModel>()
     private val repo: ChatRepository get() = viewModel.repo
 
-    /** True while the microphone is streaming to the recognizer. */
+    /** True while the microphone is capturing a voice note. */
     private val voiceListening = mutableStateOf(false)
-    private val voiceTranscript = mutableStateOf<String?>("")
 
     /** Live "11 tools" style subtitle for the toolbar. */
     private val toolsSubtitle = mutableStateOf("")
@@ -58,13 +55,22 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-    /** Requests RECORD_AUDIO permission for voice input. */
+    /** Requests RECORD_AUDIO permission for voice recording. */
     private val recordAudioLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-            if (granted) startListening() else Toast.makeText(this, "Microphone permission required", Toast.LENGTH_SHORT).show()
+            if (granted) startRecording() else Toast.makeText(this, R.string.voice_error_permission, Toast.LENGTH_SHORT).show()
         }
 
-    private var speechRecognizer: SpeechRecognizer? = null
+    private var voiceRecorder: VoiceRecorder? = null
+
+    /** Ticks the elapsed-seconds counter while recording. */
+    private var voiceTickJob: kotlinx.coroutines.Job? = null
+
+    /** Live microphone loudness (0..1) for the composer's level meter. */
+    private val voiceRms = mutableStateOf(0f)
+
+    /** Elapsed recording seconds for the composer's timer. */
+    private val voiceSeconds = mutableStateOf(0)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -93,7 +99,8 @@ class MainActivity : ComponentActivity() {
                     viewModel = viewModel,
                     toolsSubtitle = toolsSubtitle.value,
                     voiceActive = voiceListening.value,
-                    voiceTranscript = voiceTranscript.value,
+                    voiceLevel = voiceRms.value,
+                    voiceSeconds = voiceSeconds.value,
                     onOpenServers = { startActivity(Intent(this, ServersActivity::class.java)) },
                     onOpenSettings = { startActivity(Intent(this, SettingsActivity::class.java)) },
                     onNewConversation = viewModel::newConversation,
@@ -102,6 +109,7 @@ class MainActivity : ComponentActivity() {
                     onPickAttachment = { pickFileLauncher.launch(arrayOf("*/*")) },
                     onVoiceToggle = ::toggleVoiceInput,
                     onVoiceStop = ::stopVoiceInput,
+                    onVoiceDiscard = ::discardVoiceInput,
                 )
             }
         }
@@ -187,84 +195,60 @@ class MainActivity : ComponentActivity() {
             recordAudioLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
             return
         }
-        startListening()
+        startRecording()
     }
 
-    /**
-     * Starts dictation and keeps it live until the user stops or recognition
-     * ends. Recognized speech is handed to the composer as a spoken suffix;
-     * the caller pastes it through the IME-side state.
-     */
-    private fun startListening() {
-        speechRecognizer?.cancel()
-        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
-        voiceListening.value = true
-        voiceTranscript.value = getString(R.string.voice_speak_now)
-        speechRecognizer?.setRecognitionListener(object : RecognitionListener {
-            override fun onReadyForSpeech(params: Bundle) {
-                voiceTranscript.value = getString(R.string.voice_speak_now)
-            }
-
-            override fun onBeginningOfSpeech() {
-                voiceTranscript.value = getString(R.string.voice_speak_now)
-            }
-
-            override fun onRmsChanged(rmsdB: Float) {}
-            override fun onBufferReceived(buffer: ByteArray) {}
-
-            override fun onEndOfSpeech() {
-                voiceTranscript.value = getString(R.string.voice_finalizing)
-            }
-
-            override fun onError(error: Int) {
-                finishVoiceInput()
-                Toast.makeText(this@MainActivity, "Speech recognition error: $error", Toast.LENGTH_SHORT).show()
-            }
-
-            override fun onResults(results: Bundle) {
-                val matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION) ?: emptyList()
-                if (matches.isNotEmpty()) {
-                    val spoken = matches[0]
-                    // Append to whatever the composer already holds.
-                    appendSpokenText(spoken)
-                }
-                finishVoiceInput()
-            }
-
-            override fun onPartialResults(results: Bundle) {
-                val partial = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
-                if (!partial.isNullOrBlank() && voiceListening.value) {
-                    voiceTranscript.value = partial
-                }
-            }
-
-            override fun onEvent(eventType: Int, params: Bundle) {}
-        })
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+    /** Starts a real microphone recording that will be attached as a WAV. */
+    private fun startRecording() {
+        val recorder = VoiceRecorder(this, lifecycleScope) { level -> voiceRms.value = level }
+        if (!recorder.start()) {
+            Toast.makeText(this, R.string.voice_error_record, Toast.LENGTH_SHORT).show()
+            return
         }
-        speechRecognizer?.startListening(intent)
+        voiceRecorder = recorder
+        voiceRms.value = 0f
+        voiceSeconds.value = 0
+        voiceListening.value = true
+        voiceTickJob?.cancel()
+        voiceTickJob = lifecycleScope.launch {
+            while (voiceListening.value) {
+                kotlinx.coroutines.delay(1000)
+                voiceSeconds.value++
+            }
+        }
     }
 
+    /** Stops the recording and attaches the WAV to the composer. */
     private fun stopVoiceInput() {
-        val recognizer = speechRecognizer ?: return
-        voiceTranscript.value = getString(R.string.voice_finalizing)
-        recognizer.stopListening()
-    }
-
-    /** Ends dictation and restores the normal composer state. */
-    private fun finishVoiceInput() {
-        speechRecognizer?.cancel()
-        speechRecognizer = null
+        if (!voiceListening.value) return
         voiceListening.value = false
+        voiceTickJob?.cancel()
+        voiceTickJob = null
+        val recorder = voiceRecorder
+        voiceRecorder = null
+        if (recorder == null) return
+        lifecycleScope.launch {
+            val recording = kotlinx.coroutines.withContext(
+                kotlinx.coroutines.NonCancellable,
+            ) { recorder.finish() }
+            voiceRms.value = 0f
+            if (recording != null) {
+                viewModel.selectAttachment(recording.path, recording.name)
+            } else {
+                Toast.makeText(this@MainActivity, R.string.voice_error_record, Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
-    /** Appends the spoken suffix to the composer draft. */
-    private fun appendSpokenText(spoken: String) {
-        val current = viewModel.composerText.value.orEmpty().trim()
-        viewModel.setComposerText(if (current.isNotEmpty()) "$current $spoken" else spoken)
+    /** Stops the recording and throws it away. */
+    private fun discardVoiceInput() {
+        if (!voiceListening.value) return
+        voiceListening.value = false
+        voiceTickJob?.cancel()
+        voiceTickJob = null
+        voiceRecorder?.cancel()
+        voiceRecorder = null
+        voiceRms.value = 0f
     }
 
     /** Exports the current conversation as Markdown and shares it via the Android share sheet. */
@@ -316,11 +300,13 @@ class MainActivity : ComponentActivity() {
 
     override fun onPause() {
         // Stop the microphone as soon as the user leaves the screen; a
-        // recognition session that outlives it keeps the recognizer alive and
-        // announces a banner the user cannot see.
-        speechRecognizer?.cancel()
-        speechRecognizer = null
+        // recording that outlives it keeps the mic open in the background.
+        voiceRecorder?.cancel()
+        voiceRecorder = null
         voiceListening.value = false
+        voiceRms.value = 0f
+        voiceTickJob?.cancel()
+        voiceTickJob = null
         super.onPause()
     }
 
@@ -329,8 +315,8 @@ class MainActivity : ComponentActivity() {
         // the view-model respectively; both survive this activity being
         // destroyed. The repository is owned by ChatApplication for the whole
         // process.
-        speechRecognizer?.cancel()
-        speechRecognizer = null
+        voiceRecorder?.cancel()
+        voiceRecorder = null
         super.onDestroy()
     }
 }

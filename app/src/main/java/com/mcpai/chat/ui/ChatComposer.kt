@@ -2,6 +2,7 @@ package com.mcpai.chat.ui
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateValueAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.VectorConverter
@@ -12,6 +13,7 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -40,10 +42,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -74,12 +78,14 @@ fun ChatComposer(
     onSend: () -> Unit,
     sending: Boolean,
     voiceActive: Boolean,
-    voiceTranscript: String?,
+    voiceLevel: Float,
+    voiceSeconds: Int,
     attachment: ComposerAttachment?,
     onAttach: () -> Unit,
     onClearAttachment: () -> Unit,
     onVoiceToggle: () -> Unit,
     onVoiceStop: () -> Unit,
+    onVoiceDiscard: () -> Unit = {},
     onStop: () -> Unit,
     modifier: Modifier = Modifier,
     /** Editing the last user message: shows an editing strip and a cancel. */
@@ -172,9 +178,11 @@ fun ChatComposer(
                 }
             }
             if (voiceActive) {
-                VoicePreviewRow(
-                    transcript = voiceTranscript,
-                    onVoiceStop = onVoiceStop,
+                RecordingRow(
+                    level = voiceLevel,
+                    elapsedSeconds = voiceSeconds,
+                    onDiscard = onVoiceDiscard,
+                    onStop = onVoiceStop,
                 )
             }
             if (attachment != null) {
@@ -379,9 +387,11 @@ private fun composerActionButton(
 }
 
 @Composable
-private fun VoicePreviewRow(
-    transcript: String?,
-    onVoiceStop: () -> Unit,
+private fun RecordingRow(
+    level: Float,
+    elapsedSeconds: Int,
+    onDiscard: () -> Unit,
+    onStop: () -> Unit,
 ) {
     Surface(
         shape = RoundedCornerShape(16.dp),
@@ -400,9 +410,9 @@ private fun VoicePreviewRow(
                 modifier = Modifier.size(16.dp),
                 tint = chatColors.voiceForeground,
             )
+            LevelBars(level = level, color = chatColors.voiceForeground)
             Text(
-                text = transcript?.takeIf { it.isNotBlank() }
-                    ?: stringResource(R.string.voice_speak_now),
+                text = stringResource(R.string.voice_recording),
                 style = MaterialTheme.typography.bodySmall,
                 color = chatColors.voiceForeground,
                 maxLines = 1,
@@ -411,14 +421,37 @@ private fun VoicePreviewRow(
                     .weight(1f)
                     .padding(start = 8.dp),
             )
+            Text(
+                text = "%d:%02d".format(elapsedSeconds / 60, elapsedSeconds % 60),
+                style = MaterialTheme.typography.labelSmall,
+                color = chatColors.voiceForeground,
+                modifier = Modifier.padding(end = 4.dp),
+            )
             Box(
                 modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(chatColors.composerIconBg),
+                contentAlignment = Alignment.Center,
+            ) {
+                IconButton(onClick = onDiscard, modifier = Modifier.size(32.dp)) {
+                    Icon(
+                        imageVector = Icons.Filled.Close,
+                        contentDescription = stringResource(R.string.action_discard_recording),
+                        tint = chatColors.composerIconFg,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+            }
+            Box(
+                modifier = Modifier
+                    .padding(start = 2.dp)
                     .size(32.dp)
                     .clip(CircleShape)
                     .background(chatColors.voiceBackground),
                 contentAlignment = Alignment.Center,
             ) {
-                IconButton(onClick = onVoiceStop, modifier = Modifier.size(32.dp)) {
+                IconButton(onClick = onStop, modifier = Modifier.size(32.dp)) {
                     Icon(
                         imageVector = Icons.Filled.Stop,
                         contentDescription = stringResource(R.string.action_stop_voice_input),
@@ -427,6 +460,35 @@ private fun VoicePreviewRow(
                     )
                 }
             }
+        }
+    }
+}
+
+/** Five equalizer bars driven by the live microphone loudness. */
+@Composable
+private fun LevelBars(level: Float, color: androidx.compose.ui.graphics.Color) {
+    val animated = remember { Animatable(0f) }
+    val latestLevel by rememberUpdatedState(level)
+    LaunchedEffect(Unit) {
+        while (true) {
+            animated.animateTo(latestLevel, tween(80))
+            // Dip between level updates so bursts read as pulses, not flicker.
+            animated.animateTo((latestLevel * 0.55f).coerceAtLeast(0.05f), tween(160))
+        }
+    }
+    Canvas(modifier = Modifier.size(width = 26.dp, height = 20.dp)) {
+        val factors = listOf(0.45f, 0.8f, 1f, 0.7f, 0.4f)
+        val barWidth = 3.dp.toPx()
+        val gap = 2.dp.toPx()
+        val minH = 4.dp.toPx()
+        factors.forEachIndexed { index, factor ->
+            val barHeight = minH + (size.height - minH) * factor * animated.value
+            drawRoundRect(
+                color = color,
+                topLeft = androidx.compose.ui.geometry.Offset(index * (barWidth + gap), size.height - barHeight),
+                size = androidx.compose.ui.geometry.Size(barWidth, barHeight),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(barWidth / 2),
+            )
         }
     }
 }

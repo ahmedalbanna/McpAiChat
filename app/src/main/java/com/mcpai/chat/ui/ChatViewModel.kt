@@ -238,7 +238,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private fun handleTurnEvent(event: ChatEvent) {
         when (event) {
             is ChatEvent.UserMessage ->
-                _rows.value += ChatRow.User(event.id, event.text)
+                _rows.value += ChatRow.User(
+                    event.id,
+                    event.text,
+                    event.attachmentPath,
+                    event.attachmentName,
+                )
 
             is ChatEvent.AssistantStarted ->
                 _rows.value += ChatRow.Assistant(event.id, "", true)

@@ -61,9 +61,11 @@
     <string name="action_jump_to_latest">Jump to latest</string>
     <string name="action_attach">Attach file</string>
     <string name="action_remove_attachment">Remove attachment</string>
-    <string name="action_stop_voice_input">Stop voice input</string>
-    <string name="voice_speak_now">Listening… speak now</string>
-    <string name="voice_finalizing">Processing…</string>
+    <string name="action_stop_voice_input">Stop recording</string>
+    <string name="voice_recording">Recording…</string>
+    <string name="voice_error_record">Recording failed. Please try again.</string>
+    <string name="voice_error_permission">Microphone permission is needed for voice recording.</string>
+    <string name="action_discard_recording">Discard recording</string>
     <string name="ai_thinking">Thinking…</string>
     <string name="tools_used_calls">Tools used: %1$d · Calls: %2$d</string>
     <string name="sending_attachment">Sending %1$s…</string>
