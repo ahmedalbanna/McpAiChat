@@ -1,5 +1,15 @@
 package com.mcpai.chat.ui
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateValueAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.VectorConverter
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -38,7 +48,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.colorspace.ColorSpaces
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.input.ImeAction
@@ -51,7 +65,7 @@ import com.mcpai.chat.ui.theme.chatColors
 
 /**
  * Composer card: voice preview, attachment chip, multiline input with icon
- * controls and a send button whose disabled state mirrors canSendMessage().
+ * controls and a trailing action slot that morphs mic -> send -> stop.
  */
 @Composable
 fun ChatComposer(
@@ -74,6 +88,16 @@ fun ChatComposer(
 ) {
     val canSend = text.isNotBlank() && !sending && !voiceActive
     val haptic = LocalHapticFeedback.current
+    var fieldFocused by remember { mutableStateOf(false) }
+
+    // One trailing slot morphs through mic -> send -> stop instead of
+    // parking a permanently disabled send button next to the mic.
+    val composerAction = when {
+        sending -> ComposerAction.StopGenerating
+        voiceActive -> ComposerAction.StopVoice
+        canSend -> ComposerAction.Send
+        else -> ComposerAction.Mic
+    }
 
     // The field owns its selection; the caller owns only the string. When
     // the view-model replaces the text externally (edit pre-fill, suggestion
@@ -96,15 +120,26 @@ fun ChatComposer(
         }
     }
 
+    val borderColor by animateValueAsState(
+        if (fieldFocused) {
+            MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)
+        } else {
+            MaterialTheme.colorScheme.outlineVariant
+        },
+        Color.VectorConverter(ColorSpaces.Srgb),
+        tween(180),
+        label = "composerBorder",
+    )
+
     Surface(
         shape = RoundedCornerShape(28.dp),
         color = MaterialTheme.colorScheme.surfaceContainer,
         tonalElevation = 0.dp,
         modifier = modifier
             .fillMaxWidth()
-            .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(28.dp)),
+            .border(0.5.dp, borderColor, RoundedCornerShape(28.dp)),
     ) {
-        Column {
+        Column(modifier = Modifier.animateContentSize(animationSpec = tween(200))) {
             if (editingLastMessage) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -198,78 +233,20 @@ fun ChatComposer(
                     ),
                     modifier = Modifier
                         .weight(1f)
+                        .onFocusChanged { fieldFocused = it.isFocused }
                         .padding(start = 4.dp),
                 )
 
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(
-                            if (voiceActive) chatColors.voiceBackground else chatColors.composerIconBg,
-                        ),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    IconButton(onClick = onVoiceToggle, modifier = Modifier.size(40.dp)) {
-                        Icon(
-                            imageVector = if (voiceActive) Icons.Filled.Stop else Icons.Filled.Mic,
-                            contentDescription = stringResource(
-                                if (voiceActive) {
-                                    R.string.action_stop_voice_input
-                                } else {
-                                    R.string.action_voice_input
-                                },
-                            ),
-                            tint = if (voiceActive) chatColors.voiceOn else chatColors.composerIconFg,
-                            modifier = Modifier.size(20.dp),
-                        )
-                    }
-                }
-
-                Box(
-                    modifier = Modifier
-                        .padding(start = 2.dp)
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(
-                            when {
-                                sending -> chatColors.sendBackground
-                                canSend -> chatColors.sendBackground
-                                else -> chatColors.sendDisabledBackground
-                            },
-                        ),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    IconButton(
-                        onClick = {
-                            if (sending) {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                onStop()
-                            } else if (canSend) {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                onSend()
-                            }
-                        },
-                        enabled = sending || canSend,
-                        modifier = Modifier.size(40.dp),
-                    ) {
-                        if (sending) {
-                            Icon(
-                                imageVector = Icons.Filled.Stop,
-                                contentDescription = stringResource(R.string.action_stop_generating),
-                                tint = chatColors.sendForeground,
-                                modifier = Modifier.size(20.dp),
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Filled.Send,
-                                contentDescription = stringResource(R.string.action_send),
-                                tint = if (canSend) chatColors.sendForeground else chatColors.sendDisabledForeground,
-                                modifier = Modifier.size(20.dp),
-                            )
-                        }
-                    }
-                }
+                composerActionButton(
+                    action = composerAction,
+                    sending = sending,
+                    onSend = onSend,
+                    onStop = onStop,
+                    onVoiceToggle = onVoiceToggle,
+                    onVoiceStop = onVoiceStop,
+                    canSend = canSend,
+                    haptic = haptic,
+                )
             }
         }
     }
@@ -295,6 +272,108 @@ private fun composerIconButton(
                 tint = chatColors.composerIconFg,
                 modifier = Modifier.size(20.dp),
             )
+        }
+    }
+}
+
+/** The single trailing action the composer shows right now. */
+private enum class ComposerAction {
+    Mic,
+    Send,
+    StopGenerating,
+    StopVoice,
+}
+
+@Composable
+private fun composerActionButton(
+    action: ComposerAction,
+    sending: Boolean,
+    onSend: () -> Unit,
+    onStop: () -> Unit,
+    onVoiceToggle: () -> Unit,
+    onVoiceStop: () -> Unit,
+    canSend: Boolean,
+    haptic: HapticFeedback,
+) {
+    val background by animateValueAsState(
+        when (action) {
+            ComposerAction.Mic -> chatColors.composerIconBg
+            ComposerAction.Send -> chatColors.sendBackground
+            ComposerAction.StopGenerating -> chatColors.sendBackground
+            ComposerAction.StopVoice -> chatColors.voiceBackground
+        },
+        Color.VectorConverter(ColorSpaces.Srgb),
+        tween(180),
+        label = "composerActionBg",
+    )
+
+    Box(
+        modifier = Modifier
+            .padding(start = 2.dp)
+            .size(40.dp)
+            .clip(CircleShape)
+            .background(background),
+        contentAlignment = Alignment.Center,
+    ) {
+        AnimatedContent(
+            targetState = action,
+            transitionSpec = {
+                (scaleIn(initialScale = 0.6f, animationSpec = tween(150)) +
+                    fadeIn(animationSpec = tween(150)))
+                    .togetherWith(
+                        scaleOut(targetScale = 0.6f, animationSpec = tween(90)) +
+                            fadeOut(animationSpec = tween(90)),
+                    )
+            },
+            label = "composerActionIcon",
+        ) { target ->
+            IconButton(
+                onClick = {
+                    when (target) {
+                        ComposerAction.Send -> {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onSend()
+                        }
+                        ComposerAction.StopGenerating -> {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onStop()
+                        }
+                        ComposerAction.Mic -> onVoiceToggle()
+                        ComposerAction.StopVoice -> onVoiceStop()
+                    }
+                },
+                enabled = target != ComposerAction.Send || canSend,
+                modifier = Modifier.size(40.dp),
+            ) {
+                val (icon, description, tint) = when (target) {
+                    ComposerAction.Mic -> Triple(
+                        Icons.Filled.Mic,
+                        stringResource(R.string.action_voice_input),
+                        chatColors.composerIconFg,
+                    )
+                    ComposerAction.Send -> Triple(
+                        Icons.Filled.Send,
+                        stringResource(R.string.action_send),
+                        chatColors.sendForeground,
+                    )
+                    ComposerAction.StopGenerating -> Triple(
+                        Icons.Filled.Stop,
+                        stringResource(R.string.action_stop_generating),
+                        chatColors.sendForeground,
+                    )
+                    ComposerAction.StopVoice -> Triple(
+                        Icons.Filled.Stop,
+                        stringResource(R.string.action_stop_voice_input),
+                        chatColors.voiceOn,
+                    )
+                }
+                Icon(
+                    imageVector = icon,
+                    contentDescription = description,
+                    tint = tint,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
         }
     }
 }
