@@ -17,6 +17,8 @@ import kotlinx.coroutines.launch
  * This is the app's entry point: MainActivity opens a specific conversation when launched
  * with a `conversation_id` extra, otherwise it creates (or reuses) the latest conversation.
  */
+private const val REQ_POST_NOTIFICATIONS = 4242
+
 class ConversationListActivity : ComponentActivity() {
 
     private lateinit var repo: ChatRepository
@@ -25,6 +27,17 @@ class ConversationListActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (android.os.Build.VERSION.SDK_INT >= 33 &&
+            androidx.core.content.ContextCompat.checkSelfPermission(
+                this,
+                android.Manifest.permission.POST_NOTIFICATIONS,
+            ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(
+                arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),
+                REQ_POST_NOTIFICATIONS,
+            )
+        }
         enableEdgeToEdge()
         repo = ChatRepository.get(applicationContext)
         setContent {

@@ -148,6 +148,19 @@
     <string name="label_error">error</string>
     <string name="label_declined">declined</string>
 
+    <!-- Answer service notifications (N2) -->
+    <string name="channel_answers_work_name">Answer in progress</string>
+    <string name="channel_answers_work_desc">Shows that a background answer is being written.</string>
+    <string name="channel_answers_done_name">Answer notifications</string>
+    <string name="channel_answers_done_desc">Tells you when a background answer is ready, or needs your approval.</string>
+    <string name="notification_writing_answer">Writing your answer…</string>
+    <string name="notification_waiting_for_approval">Waiting for your approval to run %1$s…</string>
+    <string name="notification_approval_needed_title">Approval needed</string>
+    <string name="notification_approval_needed_text">%1$s wants to run %2$s</string>
+    <string name="notification_answer_ready_title">Answer ready</string>
+    <string name="notification_answer_ready_text">Open the chat to read it.</string>
+    <string name="action_open_chat">Open chat</string>
+
     <string name="tool_approval_title">Run this tool?</string>
     <string name="tool_approval_subtitle">An MCP server wants to run a tool on your behalf.</string>
     <string name="approval_arguments_label">Arguments</string>

@@ -116,6 +116,9 @@ class ChatRepository internal constructor(context: Context) {
     /** Last turn started via [startTurn] was cancelled by the user. */
     private var lastTurnCancelled = false
 
+    /** True when the last turn ended because the user cancelled it. Read by the answer service to suppress the completion notification. */
+    val lastTurnCancelledFlag: Boolean get() = lastTurnCancelled
+
     private val _turnEvents = MutableSharedFlow<ChatEvent>(extraBufferCapacity = 512)
 
     /**
