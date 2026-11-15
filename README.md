@@ -22,6 +22,7 @@ outside this repository, in `../mcp-ai-chat-re/`).
 | **Model picker**          | Loads the provider's live model list from `GET /v1/models`                                                                                                                                                                                                                                                                                                                                                                                             |
 | **Tool loop**             | `user → LLM → tool_calls → MCP tools/call → tool result → LLM → answer`, bounded to 8 rounds                                                                                                                                                                                                                                                                                                                                                           |
 | **Tool approval**         | Every tool call asks first — tool name, owning server and arguments — with optional per-tool auto-approval that can be revoked                                                                                                                                                                                                                                                                                                                         |
+| **Background answers**    | A turn keeps running when you leave the app: the answer streams on, partially persists to SQLite as it arrives, an ongoing "Writing your answer…" notification (with Cancel) runs alongside, an "Approval needed" notification deep-links back to the pending tool dialog, and "Answer ready" posts if the turn finishes while you are out                                                                                                             |
 | **Free server catalogue** | 33 keyless public MCP servers, each verified with a live handshake; suggestions only, all editable                                                                                                                                                                                                                                                                                                                                                     |
 | **Chat UI**               | Streaming assistant bubbles, dedicated tool-call cards (arguments + result + status), status banner, per-server enable switch, stop generating mid-turn, jump-to-latest while scrolled up, suggestion chips on the empty state, per-message copy of raw markdown, retry after a failed turn, regenerate the last answer in place, edit the last message and regenerate from it, date dividers between calendar days, composer stays above the keyboard |
 | **Conversation list**     | Every conversation deletable with a confirmation dialog; phantom-inset overlap on this device class fixed                                                                                                                                                                                                                                                                                                                                              |
@@ -220,6 +221,14 @@ user: "use add tool for 15 plus 27"
 Screenshots and the captured provider payloads are in `docs/`, and
 `docs/VERIFICATION.md` lists every check plus the nine bugs that were found and
 fixed during the run.
+
+Background answers were verified with the PC mocks (`tools/mock_openai_server.py`,
+`tools/reference_mcp_server.py`) exposed to the phone over `adb reverse` on the
+same phone: a turn survived the activity being removed mid-answer, notifications
+were observed at the system level (`dumpsys notification` + logcat) — the ongoing
+"Writing your answer…" notification, the "Approval needed" deep-link back into the
+pending dialog, and the "Answer ready" completion when the turn finished in the
+background.
 
 ---
 
